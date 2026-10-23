@@ -1,0 +1,58 @@
+import { contextFromTitle, fakeContext, type ScreenContext } from '../../shared/context';
+import { MOCK_LINES, renderLine } from '../../shared/mockLines';
+import { postFilter } from '../../shared/postFilter';
+import { isSensitiveHint } from '../../shared/sensitive';
+import type { HypeRequest, HypeResponse } from '../../shared/types';
+import type { Generator } from './types';
+
+function shuffle<T>(arr: T[], rng: () => number): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
+ * Zero-setup generator: picks a canned line for the (title-derived or fake) context.
+ * Same rules as real mode: silence on sensitive/blank screens, never repeats.
+ */
+export function createMockGenerator(rng: () => number = Math.random): Generator {
+  return {
+    mode: 'mock',
+    model: null,
+    async generate(req: HypeRequest): Promise<HypeResponse> {
+      const silent = (reason: string, ctx?: ScreenContext): HypeResponse => ({
+        speak: false,
+        line: '',
+        reason,
+        mode: 'mock',
+        context: ctx && { category: ctx.category, subject: ctx.subject, source: ctx.source },
+      });
+
+      if (isSensitiveHint(req.hint)) return silent('sensitive');
+      const ctx = contextFromTitle(req.hint, rng) ?? fakeContext(rng);
+      if (ctx.category === 'blank') return silent('nothing-notable', ctx);
+
+      const inCategory = MOCK_LINES.filter((l) => l.category === ctx.category);
+      const ordered = [
+        ...shuffle(inCategory.filter((l) => l.persona === req.persona), rng),
+        ...shuffle(inCategory.filter((l) => l.persona !== req.persona), rng),
+      ];
+      for (const tpl of ordered) {
+        const res = postFilter(renderLine(tpl.text, ctx), req.recent);
+        if (res.ok) {
+          return {
+            speak: true,
+            line: res.line,
+            reason: 'ok',
+            mode: 'mock',
+            context: { category: ctx.category, subject: ctx.subject, source: ctx.source },
+          };
+        }
+      }
+      return silent('exhausted', ctx);
+    },
+  };
+}

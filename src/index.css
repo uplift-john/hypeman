@@ -1,0 +1,160 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/bricolage-grotesque';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/*
+ * Design tokens. One accent (hype orange), warm neutrals.
+ * All text pairs checked ≥ 4.5:1 (WCAG AA) in both themes — see DECISIONS.md.
+ */
+:root {
+  --bg: #fbf8f5;
+  --surface: #ffffff;
+  --surface-2: #f3ede8;
+  --border: #e8e0d9;
+  --border-strong: #8e8079;
+  --text: #1b1512;
+  --muted: #6a5e57;
+  --accent: #d23c08; /* fills: white text on it = 4.78:1 */
+  --accent-hover: #b93405;
+  --accent-text: #c13506; /* accent-coloured text on bg/surface ≥ 5.2:1 */
+  --accent-soft: #ffe7dc;
+  --on-accent: #ffffff;
+  --success: #1e7a46;
+  --danger: #b42318;
+  --danger-soft: #fde8e6;
+  --warn-soft: #fff4d6;
+  --ring: #d23c08;
+  --shadow: 0 1px 2px rgb(27 21 18 / 0.06), 0 8px 24px -8px rgb(27 21 18 / 0.12);
+  --shadow-lg: 0 2px 4px rgb(27 21 18 / 0.06), 0 24px 48px -12px rgb(27 21 18 / 0.28);
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: #100d0c;
+  --surface: #1b1715;
+  --surface-2: #26211f;
+  --border: #332c29;
+  --border-strong: #7d716b;
+  --text: #f6f1ee;
+  --muted: #a89d97;
+  --accent: #ff6a2b; /* fills: near-black text on it = 6.7:1 */
+  --accent-hover: #ff8148;
+  --accent-text: #ff7a40;
+  --accent-soft: #3a1d10;
+  --on-accent: #1a0b04;
+  --success: #4ade80;
+  --danger: #ff8a80;
+  --danger-soft: #3b1513;
+  --warn-soft: #3a2e0f;
+  --ring: #ff7a40;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -8px rgb(0 0 0 / 0.6);
+  --shadow-lg: 0 2px 4px rgb(0 0 0 / 0.5), 0 24px 48px -12px rgb(0 0 0 / 0.75);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn-soft: var(--warn-soft);
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --shadow-card: var(--shadow);
+  --shadow-pop: var(--shadow-lg);
+  --radius-card: 1.25rem;
+}
+
+html {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ── motion ── */
+
+@keyframes hm-pulse {
+  0% { transform: scale(1); opacity: 0.55; }
+  70% { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes hm-toast-in {
+  from { transform: translateY(16px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes hm-fade-up {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes hm-drawer-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes hm-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+@keyframes hm-think {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-3px); opacity: 1; }
+}
+
+.hm-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: hm-pulse 2s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+.hm-toast-in { animation: hm-toast-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.hm-fade-up { animation: hm-fade-up 260ms ease-out both; }
+.hm-drawer-in { animation: hm-drawer-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.hm-progress { transform-origin: left; animation: hm-progress linear forwards; }
+.hm-think > span { display: inline-block; animation: hm-think 1.2s infinite ease-in-out; }
+.hm-think > span:nth-child(2) { animation-delay: 0.15s; }
+.hm-think > span:nth-child(3) { animation-delay: 0.3s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .hm-pulse::after { display: none; }
+  /* Keep the toast countdown meaningful without movement: show it static. */
+  .hm-progress { animation: none !important; transform: scaleX(1); opacity: 0.5; }
+}
