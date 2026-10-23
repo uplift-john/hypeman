@@ -307,7 +307,7 @@ describe('adversarial — mock mode boots with no .env and no key', () => {
 
   it('health reports mock mode and a hype request returns a line', async () => {
     const health = await (await fetch(`http://127.0.0.1:${PORT}/api/health`)).json();
-    expect(health).toEqual({ ok: true, mode: 'mock', model: null });
+    expect(health).toMatchObject({ ok: true, mode: 'mock', model: null });
     expect(log).toMatch(/mock mode/);
     const res = await fetch(`http://127.0.0.1:${PORT}/api/hype`, {
       method: 'POST',

@@ -34,3 +34,10 @@ export const PERSONA_IDS = Object.keys(PERSONAS) as PersonaId[];
 export function isPersonaId(v: unknown): v is PersonaId {
   return typeof v === 'string' && v in PERSONAS;
 }
+
+/** Said out loud when a session starts: proves the sound works and unlocks audio. */
+export const GREETINGS: Record<PersonaId, string> = {
+  hype: 'Yessir! Hype man in the house.',
+  coach: 'Alright, I’m here. Let’s have a good one.',
+  bestie: 'Hiii! I’m here and ready to cheer.',
+};

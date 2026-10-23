@@ -20,7 +20,9 @@
     "test:e2e": "playwright test",
     "screenshots": "playwright test --project=screens",
     "copy-sample": "tsx scripts/copy-sample.ts",
-    "build:hosted": "node scripts/build-hosted.mjs"
+    "build:hosted": "node scripts/build-hosted.mjs",
+    "pick-voice": "tsx scripts/pick-voice.ts",
+    "voice-pack": "tsx scripts/render-voice-pack.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.2.0",

@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { createApp } from './app';
 import { generatorFromEnv } from './generators';
+import { ttsFromEnv } from './tts';
 
 try {
   process.loadEnvFile('.env');
@@ -17,10 +18,11 @@ const allowedOrigins = [
 ];
 
 const generator = generatorFromEnv();
+const tts = ttsFromEnv();
 // The request cap is a cost guard for the paid API; mock mode costs nothing, so it's uncapped there.
-const app = createApp({ generator, allowedOrigins, maxRequests: generator.mode === 'real' ? 12 : Number.POSITIVE_INFINITY });
+const app = createApp({ generator, tts, allowedOrigins, maxRequests: generator.mode === 'real' ? 12 : Number.POSITIVE_INFINITY });
 
 // Bind to loopback only: the API key proxy must never be reachable from the network.
 serve({ fetch: app.fetch, port, hostname: '127.0.0.1' }, () => {
-  console.log(`Hypeman API on http://127.0.0.1:${port} — ${generator.mode === 'real' ? `real mode (${generator.model})` : 'mock mode (no ANTHROPIC_API_KEY)'}`);
+  console.log(`Hypeman API on http://127.0.0.1:${port} — ${generator.mode === 'real' ? `real mode (${generator.model})` : 'mock mode (no ANTHROPIC_API_KEY)'}; voice: ${tts ? `ElevenLabs (${tts.voiceId})` : 'browser speech (no ELEVENLABS_API_KEY)'}`);
 });

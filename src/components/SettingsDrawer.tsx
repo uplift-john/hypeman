@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PERSONAS, PERSONA_IDS } from '../../shared/personas';
 import { FREQUENCY_LABELS, type Frequency } from '../../shared/scheduler';
 import type { Settings, ThemePref } from '../lib/storage';
-import { listVoices, onVoicesChanged, speak, voiceSupported } from '../lib/voice';
+import { listVoices, onVoicesChanged, say, voiceSupported } from '../lib/voice';
 import { notificationPermission, requestNotificationPermission } from '../lib/notify';
 import { IconClose, IconTrash, IconVolume } from './Icons';
 import { Button } from './ui';
@@ -161,7 +161,7 @@ export function SettingsDrawer({ open, settings, onChange, onClose, onClearHisto
                     ))}
                   </select>
                 </label>
-                <Button onClick={() => speak('Noice! I see what you did there, and I like it.', settings.voiceURI, settings.persona)}>
+                <Button onClick={() => void say('Noice! I see what you did there, and I like it.', settings.voiceURI, settings.persona)}>
                   <IconVolume width={18} height={18} /> Test
                 </Button>
               </div>

@@ -4,6 +4,7 @@ import { postFilter } from '../../shared/postFilter';
 import type { HypeRequest, HypeResponse } from '../../shared/types';
 import { ApiError, type HypeApi } from '../session/engine';
 import type { ScreenshotSource } from './screenshotSource';
+import { recordedLinesFor } from './voicePack';
 
 type SampleFn = ((input: string, opts?: Record<string, unknown>) => Promise<{ text: string }>) & {
   json<T>(input: string, opts?: Record<string, unknown>): Promise<T>;
@@ -44,7 +45,12 @@ export function createHostedApi(source: ScreenshotSource, getSampleFn: () => Sam
       const blob = source.get();
       if (!useClaude || !sample) return mock.generate({ ...req, image: undefined });
       if (!blob) return { speak: false, line: '', reason: 'no-frame', mode: 'real' };
-      const prompt = `${systemPrompt(req.persona)}\n\n---\n\n${userPrompt({ recent: req.recent, trigger: req.trigger })}\n\nThe attached image is the screenshot.`;
+      // With a recorded voice pack, Claude picks one of the recorded reactions so it's always heard in Hypeman's real voice.
+      const menu = recordedLinesFor(req.persona).filter((l) => !req.recent.includes(l));
+      const menuText = menu.length
+        ? `\n\nYour voice is pre-recorded. If you speak, "line" MUST be copied exactly from this list — pick the reaction that best fits what's on screen:\n${menu.map((l) => `- ${l}`).join('\n')}`
+        : '';
+      const prompt = `${systemPrompt(req.persona)}\n\n---\n\n${userPrompt({ recent: req.recent, trigger: req.trigger })}${menuText}\n\nThe attached image is the screenshot.`;
       try {
         const out = await sample.json<{ speak?: unknown; line?: unknown; reason?: unknown }>(prompt, {
           images: [blob],

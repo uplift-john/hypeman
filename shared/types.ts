@@ -28,6 +28,8 @@ export interface HealthResponse {
   ok: true;
   mode: Mode;
   model: string | null;
+  /** Where Hypeman's voice comes from. */
+  voice?: 'elevenlabs' | 'browser';
 }
 
 export const MAX_IMAGE_BYTES = 1_500_000;

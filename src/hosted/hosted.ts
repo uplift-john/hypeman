@@ -1,6 +1,8 @@
 import type { EngineDeps } from '../session/engine';
 import { createHostedApi, getSample } from './hostedApi';
 import { createScreenshotSource } from './screenshotSource';
+import { hasVoicePack, voiceClips } from './voicePack';
+import { setVoicePack } from '../lib/voice';
 
 /** True in the hosted (claude.ai artifact) build: screenshot input, Claude via the page runtime. */
 export const HOSTED = import.meta.env.VITE_HOSTED === '1';
@@ -23,6 +25,8 @@ export function watchHostedMode(fn: (m: Mode) => void): () => void {
   if (mode) fn(mode);
   return () => modeListeners.delete(fn);
 }
+
+if (HOSTED && hasVoicePack) setVoicePack((key) => voiceClips[key]);
 
 if (HOSTED) {
   void getSample().then((s) => {

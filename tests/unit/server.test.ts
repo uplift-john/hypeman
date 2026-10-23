@@ -21,7 +21,7 @@ describe('server', () => {
     expect(generatorFromEnv({ ANTHROPIC_API_KEY: 'sk-ant-x' }).mode).toBe('real');
     expect(generatorFromEnv({ ANTHROPIC_API_KEY: 'sk-ant-x', HYPEMAN_FORCE_MOCK: '1' }).mode).toBe('mock');
     const res = await app().request('/api/health');
-    expect(await res.json()).toEqual({ ok: true, mode: 'mock', model: null });
+    expect(await res.json()).toMatchObject({ ok: true, mode: 'mock', model: null });
   });
 
   it('health never exposes the key', async () => {

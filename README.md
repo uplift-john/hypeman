@@ -41,6 +41,14 @@ Press **Start session**, pick what to share, keep working. Press **Hype me now**
 
 Both modes share the exact same rate limiter, scheduler, idle detection, de-duplication and UI.
 
+## Hypeman's voice (ElevenLabs)
+
+Hypeman talks out loud — voice is on by default, with a mute button in the session header.
+
+- **With `ELEVENLABS_API_KEY` in `.env`**, the local server voices every line through ElevenLabs (key stays server-side; `/api/tts`). Default voice: **Liam** (young, energetic American guy) with low stability / high style for hype delivery. Want more gym bro? `npm run pick-voice` searches the Voice Library for young male "gym bro"/"hype" voices with preview links; add one and set `ELEVENLABS_VOICE_ID`.
+- **Hosted page:** it can't call ElevenLabs at runtime, so `npm run voice-pack` pre-records every reaction into `voice-pack/pack.json`, and `npm run build:hosted` bakes the clips in. Claude then picks the best-fitting recorded reaction, so the hosted page always speaks in the real voice.
+- **Without a key**, the browser's built-in voice is used (a male English voice where available).
+
 ## Privacy guarantees
 
 - **You choose what it sees.** Only the window/tab/screen you pick in the browser's own dialog. A red **Live / Sharing screen** badge shows whenever capture is on; Stop ends it instantly, and ending the share from the browser ends the session.

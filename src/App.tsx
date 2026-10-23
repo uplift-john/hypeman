@@ -8,16 +8,11 @@ import { ToastRegion } from './components/Toast';
 import { api } from './lib/api';
 import { notify, requestNotificationPermission } from './lib/notify';
 import { loadHistory, loadSettings, recordDelivery, saveSettings, upsertHistory, type Settings } from './lib/storage';
-import { speak, stopSpeaking } from './lib/voice';
+import { say, setVoiceBackend, stopSpeaking } from './lib/voice';
+import { GREETINGS } from '../shared/personas';
 import type { EndReason, FeedItem, ManualResult } from './session/engine';
 import { useSession } from './session/useSession';
 import { HOSTED, hostedDeps, watchHostedMode } from './hosted/hosted';
-
-const GREETINGS: Record<Settings['persona'], string> = {
-  hype: 'Yessir! Hype man in the house.',
-  coach: 'Alright, I’m here. Let’s have a good one.',
-  bestie: 'Hiii! I’m here and ready to cheer.',
-};
 
 const START_FAILURES: EndReason[] = ['denied', 'cancelled', 'unsupported', 'failed'];
 
@@ -67,7 +62,12 @@ export default function App() {
     let cancelled = false;
     api
       .health()
-      .then((h) => !cancelled && (setMode(h.mode), setServerDown(false)))
+      .then((h) => {
+        if (cancelled) return;
+        setMode(h.mode);
+        setServerDown(false);
+        setVoiceBackend(h.voice === 'elevenlabs' ? 'elevenlabs' : 'browser');
+      })
       .catch(() => !cancelled && setServerDown(true));
     return () => {
       cancelled = true;
@@ -95,7 +95,7 @@ export default function App() {
         setToastId(item.id);
         recordDelivery(item.at);
         upsertHistory({ id: item.id, at: item.at, line: item.line, persona: settings.persona, reaction: null });
-        if (settings.voiceOn) speak(item.line, settings.voiceURI, settings.persona);
+        if (settings.voiceOn) void say(item.line, settings.voiceURI, settings.persona);
         if (settings.notifications && document.visibilityState === 'hidden') notify(item.line);
       }),
     [engine, settings.persona, settings.voiceOn, settings.voiceURI, settings.notifications],
@@ -127,7 +127,7 @@ export default function App() {
     if (settings.notifications) void requestNotificationPermission();
     if (state.phase === 'ended') engine.reset();
     // Say hi on the Start click itself: proves the sound works and unlocks speech for later.
-    if (settings.voiceOn) speak(GREETINGS[settings.persona], settings.voiceURI, settings.persona);
+    if (settings.voiceOn) void say(GREETINGS[settings.persona], settings.voiceURI, settings.persona);
     await engine.start();
   }, [engine, settings.notifications, settings.voiceOn, settings.voiceURI, settings.persona, state.phase]);
 
@@ -187,7 +187,7 @@ export default function App() {
             voiceOn={settings.voiceOn}
             onToggleVoice={() => {
               if (settings.voiceOn) stopSpeaking();
-              else speak('Sound on!', settings.voiceURI, settings.persona);
+              else void say('Sound on!', settings.voiceURI, settings.persona);
               update({ voiceOn: !settings.voiceOn });
             }}
             onDismissNotice={() => engine.dismissNotice()}

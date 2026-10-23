@@ -4,9 +4,12 @@ import { isPersonaId } from '../shared/personas';
 import { isSensitiveHint } from '../shared/sensitive';
 import { MAX_IMAGE_BYTES, type HealthResponse, type HypeRequest, type HypeResponse } from '../shared/types';
 import { UpstreamError, type Generator } from './generators/types';
+import { MAX_TTS_CHARS, TtsError, forSpeech, type Tts } from './tts';
 
 export interface AppOptions {
   generator: Generator;
+  /** ElevenLabs voice; null → the browser's built-in speech is used instead. */
+  tts?: Tts | null;
   /** Origins allowed to call the API from a browser. Requests without an Origin header (curl, tests) are allowed. */
   allowedOrigins: string[];
   /** Cost guard: max model requests per rolling window. */
@@ -66,7 +69,7 @@ export function createApp(opts: AppOptions) {
   });
 
   app.get('/api/health', (c) => {
-    const res: HealthResponse = { ok: true, mode: generator.mode, model: generator.model };
+    const res: HealthResponse = { ok: true, mode: generator.mode, model: generator.model, voice: opts.tts ? 'elevenlabs' : 'browser' };
     return c.json(res);
   });
 
@@ -114,6 +117,31 @@ export function createApp(opts: AppOptions) {
       }
     },
   );
+
+  app.post('/api/tts', bodyLimit({ maxSize: 4_000, onError: (c) => c.json({ error: 'Payload too large.' }, 413) }), async (c) => {
+    const tts = opts.tts;
+    if (!tts) return c.json({ error: 'No ElevenLabs key configured; using the browser voice.' }, 404);
+    if (!(c.req.header('content-type') ?? '').toLowerCase().startsWith('application/json')) {
+      return c.json({ error: 'Content-Type must be application/json.' }, 415);
+    }
+    let body: { text?: unknown; persona?: unknown };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'Invalid JSON.' }, 400);
+    }
+    const raw = typeof body.text === 'string' ? body.text : '';
+    const text = raw.length <= MAX_TTS_CHARS ? forSpeech(raw) : '';
+    if (!text) return c.json({ error: 'text must be 1–200 characters.' }, 400);
+    const persona = isPersonaId(body.persona) ? body.persona : 'hype';
+    try {
+      const audio = await tts.synthesize(text, persona, c.req.raw.signal);
+      return c.body(audio, 200, { 'content-type': 'audio/mpeg', 'cache-control': 'no-store' });
+    } catch (err) {
+      log(`[tts] ${err instanceof TtsError ? err.status : 'error'}`);
+      return c.json({ error: err instanceof TtsError ? err.message : 'Voice generation failed.' }, err instanceof TtsError && err.status === 429 ? 429 : 502);
+    }
+  });
 
   app.notFound((c) => c.json({ error: 'Not found' }, 404));
   return app;
