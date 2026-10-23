@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server';
-import { createApp } from './app';
-import { generatorFromEnv } from './generators';
-import { ttsFromEnv } from './tts';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { existsSync } from 'node:fs';
+import { appFromEnv } from './fromEnv';
 
 try {
   process.loadEnvFile('.env');
@@ -9,20 +9,23 @@ try {
   // No .env — that's fine, we run in mock mode.
 }
 
-const port = Number(process.env.HYPEMAN_API_PORT ?? 8787);
-const webPort = Number(process.env.HYPEMAN_WEB_PORT ?? 5173);
-const allowedOrigins = [
-  `http://localhost:${webPort}`,
-  `http://127.0.0.1:${webPort}`,
-  ...(process.env.HYPEMAN_ALLOWED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean) ?? []),
-];
+const { app, generator, tts, auth } = appFromEnv();
 
-const generator = generatorFromEnv();
-const tts = ttsFromEnv();
-// The request cap is a cost guard for the paid API; mock mode costs nothing, so it's uncapped there.
-const app = createApp({ generator, tts, allowedOrigins, maxRequests: generator.mode === 'real' ? 12 : Number.POSITIVE_INFINITY });
+// `npm start` (e.g. on Railway/Render/Fly): also serve the built frontend from dist/.
+const serveFrontend = process.argv.includes('--static') && existsSync('dist/index.html');
+if (serveFrontend) {
+  app.use('/*', serveStatic({ root: './dist' }));
+  app.get('*', serveStatic({ path: './dist/index.html' }));
+}
 
-// Bind to loopback only: the API key proxy must never be reachable from the network.
-serve({ fetch: app.fetch, port, hostname: '127.0.0.1' }, () => {
-  console.log(`Hypeman API on http://127.0.0.1:${port} — ${generator.mode === 'real' ? `real mode (${generator.model})` : 'mock mode (no ANTHROPIC_API_KEY)'}; voice: ${tts ? `ElevenLabs (${tts.voiceId})` : 'browser speech (no ELEVENLABS_API_KEY)'}`);
+// Local dev binds to loopback only: the API-key proxy must never be reachable from the network.
+// A public deployment must be gated (HYPEMAN_ACCESS_CODES), and only then listens on all interfaces.
+const port = Number(process.env.PORT ?? process.env.HYPEMAN_API_PORT ?? 8787);
+const hostname = auth && serveFrontend ? '0.0.0.0' : '127.0.0.1';
+
+serve({ fetch: app.fetch, port, hostname }, () => {
+  console.log(
+    `Hypeman ${serveFrontend ? 'app' : 'API'} on http://${hostname}:${port} — ${generator.mode === 'real' ? `real mode (${generator.model})` : 'mock mode (no ANTHROPIC_API_KEY)'}; ` +
+      `voice: ${tts ? `ElevenLabs (${tts.voiceId})` : 'browser speech'}; access: ${auth ? `passcode (${auth.codes.size} code${auth.codes.size === 1 ? '' : 's'})` : 'open (local only)'}`,
+  );
 });

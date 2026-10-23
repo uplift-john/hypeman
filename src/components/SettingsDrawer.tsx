@@ -13,6 +13,8 @@ interface Props {
   onChange(patch: Partial<Settings>): void;
   onClose(): void;
   onClearHistory(): void;
+  /** Present on gated deployments. */
+  onSignOut?: () => void;
 }
 
 const FREQ_HELP: Record<Frequency, string> = {
@@ -21,7 +23,7 @@ const FREQ_HELP: Record<Frequency, string> = {
   max: 'As often as allowed — still never more than 2 per 10 minutes.',
 };
 
-export function SettingsDrawer({ open, settings, onChange, onClose, onClearHistory }: Props) {
+export function SettingsDrawer({ open, settings, onChange, onClose, onClearHistory, onSignOut }: Props) {
   const panel = useRef<HTMLDivElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>(() => listVoices());
@@ -226,6 +228,11 @@ export function SettingsDrawer({ open, settings, onChange, onClose, onClearHisto
             <p className="mt-2 min-h-5 text-sm text-muted" aria-live="polite">
               {cleared ? 'Reaction history cleared.' : ''}
             </p>
+            {onSignOut && (
+              <Button className="mt-2" onClick={onSignOut}>
+                Sign out
+              </Button>
+            )}
           </Group>
         </div>
       </div>

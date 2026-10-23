@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Hypeman privacy</title>
+<style>
+  :root { --bg:#fbf8f5; --fg:#1b1512; --muted:#6a5e57; --accent:#c13506; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#100d0c; --fg:#f6f1ee; --muted:#a89d97; --accent:#ff7a40; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.6 ui-sans-serif, system-ui, sans-serif; }
+  main { max-width: 38rem; margin: 0 auto; padding: 3rem 1rem 4rem; }
+  h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 1rem; }
+  h2 { font-size: 1.1rem; margin: 2rem 0 .25rem; }
+  p, li { color: var(--muted); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>What Hypeman sees, sends and keeps</h1>
+  <h2>What it sees</h2>
+  <p>Only the window, tab or screen you choose in your browser's sharing dialog. You can stop sharing at any time; ending the share ends the session.</p>
+  <h2>What it sends</h2>
+  <p>About once every few minutes, at the moment it's about to comment, Hypeman takes one downscaled screenshot (at most 1024 pixels wide) and sends it through this site's server to Anthropic's Claude, which writes the comment. If you have voice on, the comment's text (never the screenshot) is sent to ElevenLabs to be spoken. Between comments, a tiny greyscale thumbnail is compared on your device to tell whether you're active; it never leaves your browser.</p>
+  <h2>What it keeps</h2>
+  <p>Nothing on the server: screenshots are not written to disk, logged or cached, and only exist in memory for the few seconds a request takes. Your browser keeps your settings, the comments you reacted to, and the times of the last few comments (so the two-per-ten-minutes limit survives a reload). Clear them in Settings → Your data.</p>
+  <h2>What it won't comment on</h2>
+  <p>Banking and payments, passwords and sign-in pages, health information, IDs and dating profiles: Hypeman is instructed to stay silent, and generated lines are filtered for amounts, account numbers, emails and phone numbers. In chats it reacts to the vibe and never quotes messages or names people.</p>
+  <h2>Who processes your data</h2>
+  <p>Anthropic (Claude) for comments and ElevenLabs for the voice, under their API terms. Signing in sets one cookie that keeps you signed in for 30 days.</p>
+  <p><a href="/">Back to Hypeman</a></p>
+</main>
+</body>
+</html>

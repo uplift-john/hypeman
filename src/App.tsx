@@ -3,6 +3,7 @@ import { PERSONAS } from '../shared/personas';
 import type { Mode } from '../shared/types';
 import { SessionView, type ManualFeedback } from './components/SessionView';
 import { SettingsDrawer } from './components/SettingsDrawer';
+import { SignIn } from './components/SignIn';
 import { StartScreen } from './components/StartScreen';
 import { ToastRegion } from './components/Toast';
 import { api } from './lib/api';
@@ -48,6 +49,8 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
   const [mode, setMode] = useState<Mode | null>(null);
   const [serverDown, setServerDown] = useState(false);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  const [healthTick, setHealthTick] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toastId, setToastId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<ManualFeedback | null>(null);
@@ -66,13 +69,14 @@ export default function App() {
         if (cancelled) return;
         setMode(h.mode);
         setServerDown(false);
+        setNeedsSignIn(!!h.auth?.required && !h.auth.user);
         setVoiceBackend(h.voice === 'elevenlabs' ? 'elevenlabs' : 'browser');
       })
       .catch(() => !cancelled && setServerDown(true));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [healthTick]);
 
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings((s) => {
@@ -146,10 +150,28 @@ export default function App() {
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
+  // A 401 mid-session means the sign-in expired: stop and ask again.
+  const sessionExpired = state.notice?.text === 'Please sign in.';
+  useEffect(() => {
+    if (sessionExpired) engine.stop();
+  }, [sessionExpired, engine]);
+
   const showStart =
     state.phase === 'off' || state.phase === 'starting' || (state.phase === 'ended' && state.endReason !== null && START_FAILURES.includes(state.endReason));
 
   const quiet = settings.quietHours;
+  if ((needsSignIn || sessionExpired) && !HOSTED) {
+    return (
+      <SignIn
+        login={api.login}
+        onSignedIn={() => {
+          engine.reset();
+          setHealthTick((n) => n + 1);
+        }}
+      />
+    );
+  }
+
   return (
     <>
       <div inert={drawerOpen}>
@@ -200,6 +222,16 @@ export default function App() {
         settings={settings}
         onChange={update}
         onClose={closeDrawer}
+        onSignOut={
+          !HOSTED
+            ? async () => {
+                engine.stop();
+                await api.logout().catch(() => {});
+                setDrawerOpen(false);
+                setHealthTick((n) => n + 1);
+              }
+            : undefined
+        }
         onClearHistory={() => {
           try {
             localStorage.removeItem('hypeman.history.v1');

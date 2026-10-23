@@ -1,5 +1,7 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+import { SESSION_COOKIE, SESSION_DAYS, dayKey, signSession, userForCode, verifySession, type AuthConfig, type Limits } from './auth';
 import { isPersonaId } from '../shared/personas';
 import { isSensitiveHint } from '../shared/sensitive';
 import { MAX_IMAGE_BYTES, type HealthResponse, type HypeRequest, type HypeResponse } from '../shared/types';
@@ -10,8 +12,15 @@ export interface AppOptions {
   generator: Generator;
   /** ElevenLabs voice; null → the browser's built-in speech is used instead. */
   tts?: Tts | null;
-  /** Origins allowed to call the API from a browser. Requests without an Origin header (curl, tests) are allowed. */
+  /**
+   * Origins allowed to call the API from a browser, in addition to the API's own origin
+   * (same-origin is always fine). Requests without an Origin header (curl, tests) are allowed.
+   */
   allowedOrigins: string[];
+  /** Passcode gate for public deployments; null/undefined = open (local dev). */
+  auth?: AuthConfig | null;
+  /** Daily caps on paid calls; undefined = no daily caps (local dev). */
+  limits?: Limits;
   /** Cost guard: max model requests per rolling window. */
   maxRequests?: number;
   requestWindowMs?: number;
@@ -54,23 +63,98 @@ export function createApp(opts: AppOptions) {
   const maxRequests = opts.maxRequests ?? 12;
   const windowMs = opts.requestWindowMs ?? 600_000;
   const log = opts.log ?? ((m: string) => console.error(m));
-  let requestTimes: number[] = [];
+  const requestTimes = new Map<string, number[]>();
+  const auth = opts.auth ?? null;
+  const limits = opts.limits;
 
-  const app = new Hono();
+  const app = new Hono<{ Variables: { user: string } }>();
+
+  /** Count one paid call against a daily cap; true if still within it. Fails closed if the store is down. */
+  async function withinDaily(key: string, max: number): Promise<boolean> {
+    if (!limits || !Number.isFinite(max)) return true;
+    try {
+      return (await limits.store.incr(`${key}:${dayKey(now())}`, 2 * 86_400)) <= max;
+    } catch {
+      log('[limits] counter store unavailable');
+      return false;
+    }
+  }
+
+  const sameOrigin = (c: Context, origin: string) => {
+    try {
+      return new URL(origin).host === (c.req.header('x-forwarded-host') ?? c.req.header('host'));
+    } catch {
+      return false;
+    }
+  };
 
   // Browser-origin guard: a random website must not be able to spend the user's API key
   // via a request to localhost. Also requires JSON so cross-site "simple" requests are rejected.
   app.use('/api/*', async (c, next) => {
     const origin = c.req.header('origin');
-    if (origin && !allowedOrigins.includes(origin)) return c.json({ error: 'Origin not allowed.' }, 403);
+    if (origin && !allowedOrigins.includes(origin) && !sameOrigin(c, origin)) return c.json({ error: 'Origin not allowed.' }, 403);
+    c.set('user', auth ? (verifySession(getCookie(c, SESSION_COOKIE), auth.secret, now()) ?? '') : 'local');
     await next();
     c.header('Cache-Control', 'no-store');
     c.header('X-Content-Type-Options', 'nosniff');
   });
 
   app.get('/api/health', (c) => {
-    const res: HealthResponse = { ok: true, mode: generator.mode, model: generator.model, voice: opts.tts ? 'elevenlabs' : 'browser' };
+    const user = c.get('user');
+    const res: HealthResponse = {
+      ok: true,
+      mode: generator.mode,
+      model: generator.model,
+      voice: opts.tts ? 'elevenlabs' : 'browser',
+      auth: { required: !!auth, user: user || null },
+    };
     return c.json(res);
+  });
+
+  /* ── sign in / out ── */
+
+  app.post('/api/login', bodyLimit({ maxSize: 1_000, onError: (c) => c.json({ error: 'Payload too large.' }, 413) }), async (c) => {
+    if (!auth) return c.json({ ok: true, user: 'local' });
+    const ip = c.req.header('x-real-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    let code = '';
+    try {
+      const b = (await c.req.json()) as { code?: unknown };
+      code = typeof b.code === 'string' ? b.code.trim() : '';
+    } catch {
+      return c.json({ error: 'Invalid JSON.' }, 400);
+    }
+    const user = code ? userForCode(auth.codes, code) : null;
+    if (!user) {
+      // Count only failures, so a typo-prone friend isn't locked out by successful sign-ins.
+      if (limits && !(await withinDaily(`login-fail:${ip}:${new Date(now()).getUTCHours()}`, limits.loginPerHour))) {
+        return c.json({ error: 'Too many attempts. Try again in an hour.' }, 429);
+      }
+      return c.json({ error: 'That passcode didn’t work.' }, 401);
+    }
+    setCookie(c, SESSION_COOKIE, signSession(user, auth.secret, now()), {
+      httpOnly: true,
+      secure: auth.secureCookie,
+      sameSite: 'Lax',
+      path: '/',
+      maxAge: SESSION_DAYS * 86_400,
+    });
+    return c.json({ ok: true, user });
+  });
+
+  app.post('/api/logout', (c) => {
+    deleteCookie(c, SESSION_COOKIE, { path: '/' });
+    return c.json({ ok: true });
+  });
+
+  /* ── everything below costs money: signed-in people only ── */
+
+  app.use('/api/hype', async (c, next) => {
+    if (auth && !c.get('user')) return c.json({ error: 'Please sign in.' }, 401);
+    await next();
+  });
+  app.use('/api/tts', async (c, next) => {
+    if (auth && !c.get('user')) return c.json({ error: 'Please sign in.' }, 401);
+    await next();
   });
 
   app.post(
@@ -96,12 +180,21 @@ export function createApp(opts: AppOptions) {
         return c.json(res);
       }
 
+      // Short-term burst guard, per person.
+      const user = c.get('user') || 'anon';
       const t = now();
-      requestTimes = requestTimes.filter((x) => t - x < windowMs);
-      if (requestTimes.length >= maxRequests) {
+      const mine = (requestTimes.get(user) ?? []).filter((x) => t - x < windowMs);
+      if (mine.length >= maxRequests) {
         return c.json({ error: 'Too many requests — Hypeman is taking a breather.' }, 429);
       }
-      requestTimes.push(t);
+      mine.push(t);
+      requestTimes.set(user, mine);
+
+      // Daily caps only matter when the call costs money.
+      if (generator.mode === 'real' && limits) {
+        if (!(await withinDaily('hype:all', limits.hypeGlobal))) return c.json({ error: 'Hypeman has hit today’s overall limit. Back tomorrow!' }, 429);
+        if (!(await withinDaily(`hype:${user}`, limits.hypePerUser))) return c.json({ error: 'You’ve hit today’s hype limit. Back tomorrow!' }, 429);
+      }
 
       try {
         const res = await generator.generate(req, c.req.raw.signal);
@@ -134,6 +227,12 @@ export function createApp(opts: AppOptions) {
     const text = raw.length <= MAX_TTS_CHARS ? forSpeech(raw) : '';
     if (!text) return c.json({ error: 'text must be 1–200 characters.' }, 400);
     const persona = isPersonaId(body.persona) ? body.persona : 'hype';
+    if (limits) {
+      const user = c.get('user') || 'anon';
+      if (!(await withinDaily('tts:all', limits.ttsGlobal)) || !(await withinDaily(`tts:${user}`, limits.ttsPerUser))) {
+        return c.json({ error: 'Voice limit reached for today.' }, 429);
+      }
+    }
     try {
       const audio = await tts.synthesize(text, persona, c.req.raw.signal);
       return c.body(audio, 200, { 'content-type': 'audio/mpeg', 'cache-control': 'no-store' });

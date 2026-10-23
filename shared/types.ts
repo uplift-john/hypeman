@@ -30,6 +30,8 @@ export interface HealthResponse {
   model: string | null;
   /** Where Hypeman's voice comes from. */
   voice?: 'elevenlabs' | 'browser';
+  /** Public deployments require a passcode; `user` is null until signed in. */
+  auth?: { required: boolean; user: string | null };
 }
 
 export const MAX_IMAGE_BYTES = 1_500_000;

@@ -57,6 +57,10 @@ Hypeman talks out loud — voice is on by default, with a mute button in the ses
 - **Private stays private.** Banking, payments, password managers, sign-in pages, health portals, private messengers and similar titles are silenced *before* any frame is sent; the model is instructed to stay silent on sensitive content; and every generated line is filtered for amounts, account/card numbers, emails, phone numbers and health terms.
 - **Your key stays on your machine.** The API key lives only in the local Node server, which binds to `127.0.0.1`, accepts requests only from the app's own origin, requires JSON, limits body size and caps request volume.
 
+## Deploying
+
+See **[DEPLOY.md](DEPLOY.md)**: import the repo into Vercel, add a passcode list + keys, done. Public deployments are passcode-gated with per-person and overall daily caps, so nobody can run up your API bill.
+
 ## Scripts
 
 | Command | What it does |

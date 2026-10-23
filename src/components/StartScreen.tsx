@@ -139,6 +139,13 @@ export function StartScreen({ hosted = false, mode, serverDown, starting, error,
 
 
       </main>
+      {!hosted && (
+        <footer className="mt-10 text-sm text-muted">
+          <a href="/privacy.html" className="underline underline-offset-2 hover:text-ink">
+            What Hypeman sees, sends and keeps
+          </a>
+        </footer>
+      )}
     </div>
   );
 }

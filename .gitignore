@@ -10,3 +10,4 @@ blob-report
 .DS_Store
 review/_scratch
 dist-hosted
+.vercel

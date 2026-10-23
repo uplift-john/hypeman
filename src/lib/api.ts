@@ -28,8 +28,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export const api: HypeApi & { health(): Promise<HealthResponse> } = {
+export const api: HypeApi & {
+  health(): Promise<HealthResponse>;
+  login(code: string): Promise<{ ok: true; user: string }>;
+  logout(): Promise<unknown>;
+} = {
   health: () => request<HealthResponse>('/api/health'),
+  login: (code: string) =>
+    request<{ ok: true; user: string }>('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) }),
+  logout: () => request('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   hype: (req: HypeRequest) =>
     request<HypeResponse>('/api/hype', {
       method: 'POST',
