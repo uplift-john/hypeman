@@ -28,6 +28,8 @@ interface Props {
   hosted?: boolean;
   mode: Mode | null;
   serverDown: boolean;
+  /** A deployment's own explanation of what's misconfigured. */
+  configError?: string | null;
   starting: boolean;
   error: EndReason | null;
   persona: PersonaId;
@@ -36,7 +38,7 @@ interface Props {
   onOpenSettings(): void;
 }
 
-export function StartScreen({ hosted = false, mode, serverDown, starting, error, persona, onPersona, onStart, onOpenSettings }: Props) {
+export function StartScreen({ hosted = false, mode, serverDown, configError, starting, error, persona, onPersona, onStart, onOpenSettings }: Props) {
   const err = error ? START_ERRORS[error] : undefined;
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col px-4 pb-10 pt-4 sm:px-8 sm:pt-6">
@@ -96,9 +98,13 @@ export function StartScreen({ hosted = false, mode, serverDown, starting, error,
         )}
         {serverDown && !hosted && (
           <div role="alert" className="mt-6 rounded-2xl border border-line bg-danger-soft px-4 py-3">
-            <p className="font-semibold">Can’t reach the Hypeman server</p>
+            <p className="font-semibold">{configError ? 'Hypeman’s server needs setting up' : 'Can’t reach the Hypeman server'}</p>
             <p className="mt-1 text-sm text-muted">
-              Make sure <code className="rounded bg-surface px-1 py-0.5 text-ink">npm run dev</code> is running, then reload this page.
+              {configError ?? (
+                <>
+                  Make sure <code className="rounded bg-surface px-1 py-0.5 text-ink">npm run dev</code> is running, then reload this page.
+                </>
+              )}
             </p>
           </div>
         )}

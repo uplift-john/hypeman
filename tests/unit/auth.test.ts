@@ -141,12 +141,22 @@ describe('gated app', () => {
 });
 
 describe('vercel entry', () => {
-  it('refuses to boot publicly without a passcode gate', async () => {
+  it('without a passcode gate it serves no paid endpoints and explains the misconfiguration', async () => {
     const prev = { ...process.env };
     delete process.env.HYPEMAN_ACCESS_CODES;
     delete process.env.HYPEMAN_ALLOW_PUBLIC;
+    process.env.VERCEL_ENV = 'preview';
     vi.resetModules();
-    await expect(import('../../server/vercel')).rejects.toThrow(/HYPEMAN_ACCESS_CODES/);
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { default: listener } = await import('../../server/vercel');
+    const http = await import('node:http');
+    const srv = http.createServer(listener).listen(0);
+    const port = (srv.address() as { port: number }).port;
+    const res = await fetch(`http://127.0.0.1:${port}/api/hype`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toMatch(/HYPEMAN_ACCESS_CODES.*preview/);
+    srv.close();
+    errSpy.mockRestore();
     process.env = prev;
   });
 });

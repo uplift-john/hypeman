@@ -11,7 +11,7 @@ import { notify, requestNotificationPermission } from './lib/notify';
 import { loadHistory, loadSettings, recordDelivery, saveSettings, upsertHistory, type Settings } from './lib/storage';
 import { say, setVoiceBackend, stopSpeaking } from './lib/voice';
 import { GREETINGS } from '../shared/personas';
-import type { EndReason, FeedItem, ManualResult } from './session/engine';
+import { ApiError, type EndReason, type FeedItem, type ManualResult } from './session/engine';
 import { useSession } from './session/useSession';
 import { HOSTED, hostedDeps, watchHostedMode } from './hosted/hosted';
 
@@ -49,6 +49,7 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
   const [mode, setMode] = useState<Mode | null>(null);
   const [serverDown, setServerDown] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = useState(false);
   const [healthTick, setHealthTick] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -72,7 +73,12 @@ export default function App() {
         setNeedsSignIn(!!h.auth?.required && !h.auth.user);
         setVoiceBackend(h.voice === 'elevenlabs' ? 'elevenlabs' : 'browser');
       })
-      .catch(() => !cancelled && setServerDown(true));
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setServerDown(true);
+        // A 503 from a misconfigured deployment explains itself; show that instead of a generic message.
+        if (err instanceof ApiError && err.status === 503) setConfigError(err.message);
+      });
     return () => {
       cancelled = true;
     };
@@ -180,6 +186,7 @@ export default function App() {
             hosted={HOSTED}
             mode={mode}
             serverDown={serverDown}
+            configError={configError}
             starting={state.phase === 'starting'}
             error={state.phase === 'ended' ? state.endReason : null}
             persona={settings.persona}
