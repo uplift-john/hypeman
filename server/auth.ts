@@ -15,7 +15,9 @@ export const SESSION_DAYS = 30;
  */
 export function parseAccessCodes(raw: string | undefined): Map<string, string> {
   const codes = new Map<string, string>();
-  for (const part of (raw ?? '').split(',').map((s) => s.trim()).filter(Boolean)) {
+  // Forgiving about how the value was pasted into a dashboard: surrounding quotes, spaces, newlines.
+  const cleaned = (raw ?? '').trim().replace(/^["']|["']$/g, '');
+  for (const part of cleaned.split(/[,\n]/).map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean)) {
     const i = part.indexOf(':');
     const [user, code] = i === -1 ? ['guest', part] : [part.slice(0, i).trim(), part.slice(i + 1).trim()];
     if (code && /^[\w.-]{1,40}$/.test(user)) codes.set(code, user);
@@ -33,10 +35,14 @@ function safeEqual(a: string, b: string): boolean {
   return ab.length === bb.length && timingSafeEqual(ab, bb);
 }
 
-/** Constant-time lookup so codes can't be guessed by timing. */
+/**
+ * Constant-time lookup so codes can't be guessed by timing. Accepts either the code alone
+ * ("hype-me-up") or the whole pair as written in the settings ("john:hype-me-up").
+ */
 export function userForCode(codes: Map<string, string>, given: string): string | null {
+  const g = given.trim().replace(/^["']|["']$/g, '');
   let found: string | null = null;
-  for (const [code, user] of codes) if (safeEqual(code, given)) found = user;
+  for (const [code, user] of codes) if (safeEqual(code, g) || safeEqual(`${user}:${code}`, g)) found = user;
   return found;
 }
 

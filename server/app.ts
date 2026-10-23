@@ -129,7 +129,7 @@ export function createApp(opts: AppOptions) {
       if (limits && !(await withinDaily(`login-fail:${ip}:${new Date(now()).getUTCHours()}`, limits.loginPerHour))) {
         return c.json({ error: 'Too many attempts. Try again in an hour.' }, 429);
       }
-      return c.json({ error: 'That passcode didn’t work.' }, 401);
+      return c.json({ error: 'That passcode didn’t work. It’s the part after the colon in HYPEMAN_ACCESS_CODES (e.g. john:THIS-PART).' }, 401);
     }
     setCookie(c, SESSION_COOKIE, signSession(user, auth.secret, now()), {
       httpOnly: true,

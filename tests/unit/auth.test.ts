@@ -18,6 +18,13 @@ describe('passcodes and sessions', () => {
     ]);
     expect(userForCode(m, 'xyz')).toBe('sam');
     expect(userForCode(m, 'xy')).toBeNull();
+    // forgiving input: the whole pair, stray spaces, quotes
+    expect(userForCode(m, 'sam:xyz')).toBe('sam');
+    expect(userForCode(m, '  xyz ')).toBe('sam');
+    expect(userForCode(m, 'john:xyz')).toBeNull();
+    const quoted = parseAccessCodes('"john:hype-me-up, sam:yo"');
+    expect(userForCode(quoted, 'hype-me-up')).toBe('john');
+    expect(userForCode(quoted, 'yo')).toBe('sam');
   });
 
   it('signed sessions verify, expire after 30 days, and resist tampering', () => {
