@@ -30,7 +30,13 @@ export function SettingsDrawer({ open, settings, onChange, onClose, onClearHisto
 
   useEffect(() => onVoicesChanged(() => setVoices(listVoices())), []);
 
-  // Focus management: move focus in on open, trap Tab, restore on close.
+  // Keep the latest onClose without re-running the focus effect on every parent render.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Focus management: move focus in on open, trap Tab, restore on close. Depends on `open` only.
   useEffect(() => {
     if (!open) return;
     restoreTo.current = document.activeElement as HTMLElement | null;
@@ -38,7 +44,7 @@ export function SettingsDrawer({ open, settings, onChange, onClose, onClearHisto
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab' || !panel.current) return;
@@ -61,7 +67,7 @@ export function SettingsDrawer({ open, settings, onChange, onClose, onClearHisto
       document.removeEventListener('keydown', onKey);
       restoreTo.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

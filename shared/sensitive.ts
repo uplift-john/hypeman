@@ -1,5 +1,8 @@
 /**
- * Cheap, deterministic sensitivity guards. They run *before* a frame is sent
+ * Cheap, deterministic sensitivity guards. Chats, calls and feeds are NOT sensitive in
+ * themselves — they're Hypeman's favourite thing — but money, credentials, health, IDs and
+ * dating profiles are.
+ * They run *before* a frame is sent
  * (on the shared window/tab title) and *after* a line is generated (on the line).
  * The model is also instructed to stay silent on sensitive screens — this is the
  * belt to that pair of braces.
@@ -25,9 +28,9 @@ const SENSITIVE_HINT_PATTERNS: RegExp[] = [
   /\bmedical\b|\bpatient\b|\bdiagnos(is|es)\b|\bprescription\b|\bpharmacy\b|\blab results?\b|\bmychart\b|\bhealth ?record\b|\btherapy\b|\btherapist\b/i,
   // identity
   /\bssn\b|\bsocial security\b|\bpassport\b|\bdriver'?s licen[cs]e\b|\bnational insurance\b/i,
-  // private messages
-  /\bwhatsapp\b|\bsignal\b|\btelegram\b|\bmessenger\b|\bimessage\b|\b(direct|private) messages?\b|\bdms?\b|\bchat with\b/i,
-  /^messages\b/i,
+  // budgeting / payroll / expenses
+  /\bmint\b|\bmonarch money\b|\bynab\b|\bgusto\b|\badp\b|\bexpensify\b|\bquickbooks\b/i,
+  /\bzocdoc\b|\bteladoc\b|\bpatient portal\b/i,
   // dating / very personal
   /\btinder\b|\bhinge\b|\bbumble\b|\bgrindr\b/i,
 ];

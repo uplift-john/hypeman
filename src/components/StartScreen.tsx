@@ -25,6 +25,7 @@ const START_ERRORS: Partial<Record<EndReason, { title: string; body: string }>> 
 };
 
 interface Props {
+  hosted?: boolean;
   mode: Mode | null;
   serverDown: boolean;
   starting: boolean;
@@ -35,7 +36,7 @@ interface Props {
   onOpenSettings(): void;
 }
 
-export function StartScreen({ mode, serverDown, starting, error, persona, onPersona, onStart, onOpenSettings }: Props) {
+export function StartScreen({ hosted = false, mode, serverDown, starting, error, persona, onPersona, onStart, onOpenSettings }: Props) {
   const err = error ? START_ERRORS[error] : undefined;
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col px-4 pb-10 pt-4 sm:px-8 sm:pt-6">
@@ -43,9 +44,9 @@ export function StartScreen({ mode, serverDown, starting, error, persona, onPers
         <Logo />
         <div className="flex items-center gap-2">
           {mode === 'mock' && (
-            <Badge tone="neutral" className="hidden min-[380px]:inline-flex">
-              Mock mode
-            </Badge>
+            <span className="hidden min-[400px]:contents">
+              <Badge tone="neutral">{hosted ? 'Sample lines' : 'Mock mode'}</Badge>
+            </span>
           )}
           <Button variant="ghost" size="icon" onClick={onOpenSettings} aria-label="Settings">
             <IconGear />
@@ -58,29 +59,16 @@ export function StartScreen({ mode, serverDown, starting, error, persona, onPers
           <IconSparkle width={16} height={16} /> Your personal hype man
         </p>
         <h1 id="hero-title" className="hm-fade-up mt-4 font-display text-[2.5rem] font-extrabold leading-[1.02] tracking-tight text-balance sm:text-6xl">
-          Get hyped about the work you’re <span className="text-accent-ink">actually</span> doing.
+          A hype man for whatever you’re <span className="text-accent-ink">up to</span>.
         </h1>
         <p className="mt-4 max-w-xl text-lg leading-relaxed text-muted text-pretty">
-          Share a window, tab or screen. Every few minutes Hypeman notices something specific and tells you
-          what’s good about it — like a friend glancing over your shoulder.
+          {hosted
+            ? 'Show Hypeman a screenshot of what’s going on (a group chat, a call, your photos, a game, even work) and it says something kind and specific about it.'
+            : 'Share a window, tab or screen. Every few minutes Hypeman notices what’s going on (a group chat, a call, your photos, a game, even work) and says something kind and specific about it.'}
         </p>
 
-        <ul className="mt-8 grid gap-3 sm:grid-cols-3" aria-label="Privacy">
-          <Promise icon={<IconEye />} title="You choose what it sees">
-            One window, tab or screen. Stop anytime.
-          </Promise>
-          <Promise icon={<IconLock />} title="Nothing is stored">
-            {mode === 'mock'
-              ? 'In mock mode no screenshot ever leaves your browser.'
-              : 'One screenshot is sent only when it’s about to comment, then gone.'}
-          </Promise>
-          <Promise icon={<IconShield />} title="Private stays private">
-            Banking, passwords, health and messages get silence.
-          </Promise>
-        </ul>
-
-        <fieldset className="mt-8">
-          <legend className="text-sm font-semibold text-muted">Pick a voice</legend>
+        <fieldset className="mt-6">
+          <legend className="text-sm font-semibold text-muted">Pick a vibe</legend>
           <div className="mt-2 grid grid-cols-3 gap-2">
             {PERSONA_IDS.map((id) => {
               const p = PERSONAS[id];
@@ -100,14 +88,13 @@ export function StartScreen({ mode, serverDown, starting, error, persona, onPers
             })}
           </div>
         </fieldset>
-
         {err && (
           <div role="alert" className="mt-6 rounded-2xl border border-line bg-warn-soft px-4 py-3">
             <p className="font-semibold">{err.title}</p>
             <p className="mt-1 text-sm text-muted">{err.body}</p>
           </div>
         )}
-        {serverDown && (
+        {serverDown && !hosted && (
           <div role="alert" className="mt-6 rounded-2xl border border-line bg-danger-soft px-4 py-3">
             <p className="font-semibold">Can’t reach the Hypeman server</p>
             <p className="mt-1 text-sm text-muted">
@@ -116,7 +103,7 @@ export function StartScreen({ mode, serverDown, starting, error, persona, onPers
           </div>
         )}
 
-        <div className="mt-8">
+        <div className="mt-6">
           <Button
             variant="primary"
             size="lg"
@@ -129,9 +116,28 @@ export function StartScreen({ mode, serverDown, starting, error, persona, onPers
             {starting ? 'Waiting for you to pick a screen…' : 'Start session'}
           </Button>
           <p id="start-help" className="mt-3 text-sm text-muted">
-            Your browser will ask which window, tab or screen to share. Max two comments every 10 minutes.
+            {hosted
+              ? 'This hosted version works from screenshots. The local app can watch a shared screen live. Max two comments every 10 minutes.'
+              : 'Your browser will ask which window, tab or screen to share. Max two comments every 10 minutes.'}
           </p>
         </div>
+        <ul className="mt-8 grid gap-3 sm:grid-cols-3" aria-label="Privacy">
+          <Promise icon={<IconEye />} title="You choose what it sees">
+            {hosted ? 'Only the screenshots you add. Remove them anytime.' : 'One window, tab or screen. Stop anytime.'}
+          </Promise>
+          <Promise icon={<IconLock />} title="Nothing is stored">
+            {hosted
+              ? 'Your screenshot is sent to Claude only when you press Hype me now, and never saved.'
+              : mode === 'mock'
+                ? 'In mock mode no screenshot ever leaves your browser.'
+                : 'One screenshot is sent only when it’s about to comment, then gone.'}
+          </Promise>
+          <Promise icon={<IconShield />} title="Private stays private">
+            Banking, passwords, health and dating get silence. Chats get kindness, never quotes.
+          </Promise>
+        </ul>
+
+
       </main>
     </div>
   );

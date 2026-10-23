@@ -64,6 +64,11 @@ export interface EngineDeps {
   startCapture(): Promise<CaptureHandle>;
   api: HypeApi;
   rateLimit?: Partial<RateLimitConfig>;
+  /**
+   * Manual-only sessions (the hosted screenshot demo): no background sampling and no
+   * automatic comments — only "Hype me now", still under the same rate limit.
+   */
+  manualOnly?: boolean;
   /** Ages (ms) of comments delivered before this engine existed, e.g. before a reload. */
   seedAges?: number[];
 }
@@ -154,6 +159,10 @@ export class SessionEngine {
   private lastThumb: Uint8ClampedArray | null = null;
   private lastActivity = 0;
   private consecutiveErrors = 0;
+  /** No automatic attempt may be scheduled before this (monotonic) time — API outage backoff. */
+  private backoffUntil = 0;
+  /** Slot reserved by the request currently in flight, so pause/stop can give it back at once. */
+  private inflightToken: number | null = null;
   /** Bumped on every start/stop/pause/resume so stale async results are discarded. */
   private epoch = 0;
 
@@ -279,6 +288,7 @@ export class SessionEngine {
   private end(reason: EndReason): void {
     if (this.phase === 'off' || this.phase === 'ended') return;
     this.epoch++;
+    this.releaseInflight();
     this.clearTimers();
     this.capture?.stop();
     this.capture = null;
@@ -305,6 +315,7 @@ export class SessionEngine {
   pause(): void {
     if (this.phase !== 'active' || this.paused) return;
     this.epoch++;
+    this.releaseInflight();
     this.paused = true;
     this.thinking = false;
     this.clearAttempt();
@@ -370,13 +381,14 @@ export class SessionEngine {
   }
 
   private isIdle(now: number): boolean {
-    return this.phase === 'active' && now - this.lastActivity >= IDLE_AFTER_MS;
+    return !this.deps.manualOnly && this.phase === 'active' && now - this.lastActivity >= IDLE_AFTER_MS;
   }
 
   /* ── sampling (idle detection only — thumbnails never leave the browser) ── */
 
   private scheduleSample(): void {
     this.clearSample();
+    if (this.deps.manualOnly) return;
     this.sampleTimer = this.deps.timers.setTimeout(() => this.sample(), SAMPLE_EVERY_MS);
   }
 
@@ -396,7 +408,8 @@ export class SessionEngine {
     // Coming back from idle: don't pounce. Wait a short random moment before the next try.
     if (wasIdle && !isIdle && !this.snoozedUntil) {
       const soon = jitter(this.deps.rng, 120_000);
-      if (this.attemptAt === null || this.attemptAt > now + soon) this.scheduleAttempt(soon);
+      const at = Math.max(now + soon, this.backoffUntil);
+      if (this.attemptAt === null || this.attemptAt > at) this.scheduleAttempt(at - now);
     }
     this.scheduleSample();
     if (wasIdle !== isIdle) this.emit();
@@ -406,6 +419,7 @@ export class SessionEngine {
 
   private scheduleAttempt(delayMs: number): void {
     this.clearAttempt();
+    if (this.deps.manualOnly) return;
     this.attemptAt = this.deps.now() + delayMs;
     this.attemptTimer = this.deps.timers.setTimeout(() => {
       this.attemptTimer = null;
@@ -428,8 +442,11 @@ export class SessionEngine {
         return this.scheduleAttempt(Math.max(0, result.retryAt - this.deps.now()) + jitter(this.deps.rng));
       case 'silent':
         return this.scheduleAttempt(retryAfterSilence(this.deps.rng));
-      case 'error':
-        return this.scheduleAttempt(errorBackoff(this.consecutiveErrors, this.deps.rng));
+      case 'error': {
+        const wait = errorBackoff(this.consecutiveErrors, this.deps.rng);
+        this.backoffUntil = this.deps.now() + wait;
+        return this.scheduleAttempt(wait);
+      }
       default:
         return this.scheduleAttempt(nextDelay(this.settings.frequency, this.deps.rng));
     }
@@ -461,12 +478,17 @@ export class SessionEngine {
       return { kind: 'limited', retryAt: acquired.retryAt };
     }
     const token = acquired.token!;
+    this.inflightToken = token;
     const epoch = this.epoch;
     this.thinking = true;
     this.emit();
 
     const abandon = (r: ManualResult): ManualResult => {
-      this.limiter.release(token);
+      // Idempotent: pause/stop may already have released this slot.
+      if (this.inflightToken === token) {
+        this.limiter.release(token);
+        this.inflightToken = null;
+      }
       if (epoch === this.epoch) this.thinking = false;
       this.emit();
       return r;
@@ -494,6 +516,7 @@ export class SessionEngine {
     // Session stopped, paused or restarted while we were waiting: drop the result.
     if (epoch !== this.epoch) return abandon({ kind: 'unavailable' });
     this.consecutiveErrors = 0;
+    this.backoffUntil = 0;
     if (this.notice?.kind === 'error') this.notice = null;
 
     if (!res.speak || !res.line.trim() || isNearDuplicate(res.line, this.recent)) {
@@ -509,6 +532,9 @@ export class SessionEngine {
       reaction: null,
       context: res.context,
     };
+    // Count the comment from when the user sees it, not from when we asked.
+    this.limiter.commit(token, this.deps.now());
+    this.inflightToken = null;
     this.feed = [item, ...this.feed];
     this.recent = remember(this.recent, item.line);
     this.thinking = false;
@@ -528,6 +554,14 @@ export class SessionEngine {
   private clearSample(): void {
     if (this.sampleTimer !== null) this.deps.timers.clearTimeout(this.sampleTimer);
     this.sampleTimer = null;
+  }
+
+  /** A request still in flight when the user pauses or stops will be dropped: free its slot now. */
+  private releaseInflight(): void {
+    if (this.inflightToken !== null) {
+      this.limiter.release(this.inflightToken);
+      this.inflightToken = null;
+    }
   }
 
   private clearTimers(): void {

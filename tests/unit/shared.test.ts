@@ -80,13 +80,12 @@ describe('sensitive guards', () => {
     'Bitwarden Web Vault',
     'Sign in to your account',
     'MyChart - Test Results',
-    'WhatsApp',
-    'Messages',
+    'Hinge',
     '.env — api — Visual Studio Code',
     'Payroll — March pay stub',
   ])('title "%s" is sensitive', (t) => expect(isSensitiveHint(t)).toBe(true));
 
-  it.each(['Q3 Forecast - Google Sheets', 'checkout.tsx — shop — Visual Studio Code', 'Onboarding v2 – Figma', '', undefined])(
+  it.each(['Q3 Forecast - Google Sheets', 'checkout.tsx — shop — Visual Studio Code', 'Onboarding v2 – Figma', 'WhatsApp', 'Messages', 'Zoom Meeting', 'Instagram', '', undefined])(
     'title "%s" is fine',
     (t) => expect(isSensitiveHint(t)).toBe(false),
   );

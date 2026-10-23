@@ -15,6 +15,41 @@ export interface ScreenFixture {
 
 export const SCREEN_FIXTURES: ScreenFixture[] = [
   {
+    id: 'chat',
+    title: 'WhatsApp',
+    category: 'chat',
+    sensitive: false,
+    visual: { bg: '#efeae2', fg: '#111b21', accent: '#25d366', heading: 'Weekend crew', lines: ['who is bringing the cake?', 'me!! chocolate obviously', 'see you all at 7'] },
+  },
+  {
+    id: 'call',
+    title: 'Zoom Meeting',
+    category: 'call',
+    sensitive: false,
+    visual: { bg: '#1a1a1a', fg: '#ffffff', accent: '#2d8cff', heading: 'Friday catch-up', lines: ['[ 6 people · everyone smiling ]', 'Gallery view'] },
+  },
+  {
+    id: 'social',
+    title: 'Instagram',
+    category: 'social',
+    sensitive: false,
+    visual: { bg: '#ffffff', fg: '#262626', accent: '#e1306c', heading: 'Feed', lines: ['Just finished my first half-marathon!', '♥ 214   You: congrats, so proud of you!'] },
+  },
+  {
+    id: 'photos',
+    title: 'Lisbon Trip – Photos',
+    category: 'photos',
+    sensitive: false,
+    visual: { bg: '#fafafa', fg: '#202124', accent: '#fbbc04', heading: 'Lisbon Trip', lines: ['142 photos · June', '[ sunset over the river ]'] },
+  },
+  {
+    id: 'watch',
+    title: 'Perfect Sourdough at Home - YouTube',
+    category: 'watch',
+    sensitive: false,
+    visual: { bg: '#0f0f0f', fg: '#f1f1f1', accent: '#ff0000', heading: 'Perfect Sourdough at Home', lines: ['Step 3: the stretch and fold'] },
+  },
+  {
     id: 'code',
     title: 'checkout.tsx — hypeshop — Visual Studio Code',
     category: 'code',
@@ -85,11 +120,11 @@ export const SCREEN_FIXTURES: ScreenFixture[] = [
     visual: { bg: '#0b1c3a', fg: '#ffffff', accent: '#3a86ff', heading: 'Personal vault', lines: ['github.com  •  ••••••••••', 'bank login  •  ••••••••••'] },
   },
   {
-    id: 'messages',
-    title: 'WhatsApp',
+    id: 'dating',
+    title: 'Hinge',
     category: 'sensitive',
     sensitive: true,
-    visual: { bg: '#efeae2', fg: '#111b21', accent: '#25d366', heading: 'Sam', lines: ['are we still on for tonight?', 'yes! 8pm'] },
+    visual: { bg: '#ffffff', fg: '#111111', accent: '#000000', heading: 'Alex, 29', lines: ['Lives in Brooklyn · 3 miles away'] },
   },
   {
     id: 'medical',

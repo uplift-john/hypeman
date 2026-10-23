@@ -11,6 +11,7 @@ import { loadHistory, loadSettings, recordDelivery, saveSettings, upsertHistory,
 import { speak, stopSpeaking } from './lib/voice';
 import type { EndReason, FeedItem, ManualResult } from './session/engine';
 import { useSession } from './session/useSession';
+import { HOSTED, hostedDeps, watchHostedMode } from './hosted/hosted';
 
 const START_FAILURES: EndReason[] = ['denied', 'cancelled', 'unsupported', 'failed'];
 
@@ -30,10 +31,11 @@ function feedbackFor(r: ManualResult): string | null {
   switch (r.kind) {
     case 'silent':
       if (r.reason === 'sensitive') return 'This screen looks private, so Hypeman is staying quiet.';
-      if (r.reason === 'nothing-notable' || r.reason === 'no-frame') return 'Nothing to hype on this screen yet — try again once you’re into something.';
+      if (r.reason === 'no-frame') return 'Add a screenshot first: paste it, drop it, or choose a file.';
+      if (r.reason === 'nothing-notable') return 'Nothing to hype on this screen yet. Try another screenshot or try again later.';
       return 'Couldn’t find something new to say right now. Try again in a bit.';
     case 'error':
-      return 'That didn’t work — see the message above.';
+      return 'That didn’t work. Hypeman will try again in a few minutes.';
     case 'unavailable':
       return 'The session isn’t running right now.';
     default:
@@ -55,6 +57,7 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
+    if (HOSTED) return watchHostedMode(setMode);
     let cancelled = false;
     api
       .health()
@@ -74,10 +77,10 @@ export default function App() {
   }, []);
 
   const engineSettings = useMemo(
-    () => ({ persona: settings.persona, frequency: settings.frequency, quietHours: settings.quietHours, sendFrame: mode === 'real' }),
+    () => ({ persona: settings.persona, frequency: settings.frequency, quietHours: settings.quietHours, sendFrame: mode === 'real' || HOSTED }),
     [settings.persona, settings.frequency, settings.quietHours, mode],
   );
-  const { engine, state, now, wallNow } = useSession(engineSettings);
+  const { engine, state, now, wallNow } = useSession(engineSettings, hostedDeps);
 
   // Deliver each comment: toast, history, optional voice, notification when backgrounded.
   useEffect(
@@ -133,6 +136,8 @@ export default function App() {
     if (text) setFeedback({ text, at: performance.now() });
   }, [engine]);
 
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+
   const showStart =
     state.phase === 'off' || state.phase === 'starting' || (state.phase === 'ended' && state.endReason !== null && START_FAILURES.includes(state.endReason));
 
@@ -142,6 +147,7 @@ export default function App() {
       <div inert={drawerOpen}>
         {showStart ? (
           <StartScreen
+            hosted={HOSTED}
             mode={mode}
             serverDown={serverDown}
             starting={state.phase === 'starting'}
@@ -153,6 +159,7 @@ export default function App() {
           />
         ) : (
           <SessionView
+            hosted={HOSTED}
             state={state}
             mode={mode}
             now={now}
@@ -172,13 +179,13 @@ export default function App() {
             onDismissNotice={() => engine.dismissNotice()}
           />
         )}
-        <ToastRegion item={toastItem} personaName={PERSONAS[settings.persona].name} onDismiss={dismissToast} onReact={onReact} />
       </div>
+      <ToastRegion item={toastItem} personaName={PERSONAS[settings.persona].name} onDismiss={dismissToast} onReact={onReact} />
       <SettingsDrawer
         open={drawerOpen}
         settings={settings}
         onChange={update}
-        onClose={() => setDrawerOpen(false)}
+        onClose={closeDrawer}
         onClearHistory={() => {
           try {
             localStorage.removeItem('hypeman.history.v1');

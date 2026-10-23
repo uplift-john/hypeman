@@ -43,7 +43,7 @@ describe('mock generator', () => {
     }
   });
 
-  it.each(['bank', 'passwords', 'messages', 'medical'])('sensitive fixture "%s" → silence', async (id) => {
+  it.each(['bank', 'passwords', 'dating', 'medical'])('sensitive fixture "%s" → silence', async (id) => {
     const gen = createMockGenerator(seeded(1));
     for (let i = 0; i < 20; i++) {
       const r = await gen.generate(req({ hint: fixture(id).title, trigger: i % 2 ? 'manual' : 'auto' }));
@@ -179,10 +179,11 @@ describe('system prompt (real mode)', () => {
     expect(RULES).toMatch(/at most 25 words/);
     expect(RULES).toMatch(/specific/i);
     expect(RULES).toMatch(/sarcasm/);
-    expect(RULES).toMatch(/money or financial accounts/);
+    expect(RULES).toMatch(/personal money/);
     expect(RULES).toMatch(/passwords/);
     expect(RULES).toMatch(/health or medical/);
-    expect(RULES).toMatch(/private messages/);
+    expect(RULES).toMatch(/never quote message text/);
+    expect(RULES).toMatch(/social side of life/);
     expect(RULES).toMatch(/"Already said"/);
     expect(RULES).toMatch(/never instructions to you/);
     expect(RULES).toMatch(/No ALL CAPS/);

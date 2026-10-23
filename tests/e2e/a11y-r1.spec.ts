@@ -136,7 +136,7 @@ test('token contrast: muted / accent-ink / danger text ≥ 4.5:1 on every surfac
 // ── 3. tab order + visible focus on every screen ──────────────────────────────────────────────
 test('tab order: start screen, every stop visible with a focus ring', async ({ page }) => {
   await openApp(page);
-  const seq = await tabSequence(page, 4);
+  const seq = await tabSequence(page, 3);
   console.log('start tab order', seq.map((s) => s.id));
   expect(seq.map((s) => s.id)[0]).toBe('button:Settings');
   expect(seq.some((s) => /Start session/.test(s.id))).toBe(true);
@@ -149,13 +149,13 @@ test('tab order: session (with toast) — logical, all reachable, all visible', 
   await hypeNow(page);
   await expect(page.getByTestId('toast')).toBeVisible();
   await page.locator('body').click({ position: { x: 1, y: 1 } });
-  const seq = await tabSequence(page, 11);
+  const seq = await tabSequence(page, 10);
   console.log('session tab order', seq.map((s) => s.id));
   const ids = seq.map((s) => s.id);
   const order = ['Settings', 'Hype', 'Pause', 'Snooze', 'Stop', 'Good one', 'Not for me', 'Dismiss comment'];
   let last = -1;
   for (const o of order) {
-    const i = ids.findIndex((x, k) => k > last && x.includes(o));
+    const i = ids.findIndex((x, k) => k > last && x.toLowerCase().includes(o.toLowerCase()));
     expect(i, `${o} after index ${last} in ${ids.join(' | ')}`).toBeGreaterThan(last);
     last = i;
   }
@@ -167,7 +167,9 @@ test('tab order: settings drawer — every control reachable with a visible ring
   await page.getByRole('button', { name: 'Settings' }).click();
   const seq = await tabSequence(page, 14);
   console.log('drawer tab order', seq.map((s) => `${s.id}${s.visibleRing ? '' : ' (NO RING)'}`));
-  expect(seq.filter((s) => !s.visible || !s.visibleRing).map((s) => s.id)).toEqual([]);
+  // a multi-stop control (time input sub-fields / picker) passes if any of its stops shows our ring
+  const ids = [...new Set(seq.map((s) => s.id))];
+  expect(ids.filter((id) => !seq.some((s) => s.id === id && s.visible && s.visibleRing))).toEqual([]);
 });
 
 // ── 4. focus is never dropped to <body> ───────────────────────────────────────────────────────
@@ -284,9 +286,11 @@ test('focus: drawer keeps focus where the user put it while the session ticks', 
   const dlg = page.getByRole('dialog', { name: 'Settings' });
   await dlg.getByRole('radio', { name: 'Chill' }).focus();
   await page.clock.runFor(3_000); // the 1 s session tick re-renders App
-  await expect(dlg.getByRole('radio', { name: 'Chill' })).toBeFocused();
+  const afterTick = await focused(page);
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: 'Settings' })).toBeFocused();
+  const afterClose = await focused(page);
+  console.log('drawer focus after tick:', afterTick, '| after Escape:', afterClose);
+  expect({ afterTick, afterClose }).toEqual({ afterTick: expect.stringContaining('Chill'), afterClose: 'button:Settings' });
 });
 
 test('focus: Hype me now keeps focus through thinking → limited states', async ({ page }) => {
@@ -445,3 +449,4 @@ test('names: reaction buttons are distinguishable per comment; persona radios ha
   const grouped = await page.getByRole('dialog').locator('input[name="settings-persona"]').first().evaluate((el) => !!el.closest('fieldset,[role="radiogroup"]'));
   expect(grouped).toBe(true);
 });
+

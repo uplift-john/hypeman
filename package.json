@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "screenshots": "playwright test --project=screens",
-    "copy-sample": "tsx scripts/copy-sample.ts"
+    "copy-sample": "tsx scripts/copy-sample.ts",
+    "build:hosted": "node scripts/build-hosted.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.2.0",

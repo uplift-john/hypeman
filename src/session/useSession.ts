@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { startScreenCapture } from '../capture/screenCapture';
 import { api } from '../lib/api';
 import { recentDeliveryAges } from '../lib/storage';
-import { SessionEngine, type EngineSettings, type EngineState } from './engine';
+import { SessionEngine, type EngineDeps, type EngineSettings, type EngineState } from './engine';
 
 const timers = {
   setTimeout: (fn: () => void, ms: number) => window.setTimeout(fn, ms),
@@ -12,7 +12,7 @@ const timers = {
 /** Monotonic clock for every rate-limit decision: immune to wall-clock jumps. */
 const monotonicNow = () => performance.now();
 
-export function createEngine(settings: EngineSettings): SessionEngine {
+export function createEngine(settings: EngineSettings, overrides: Partial<EngineDeps> = {}): SessionEngine {
   return new SessionEngine(
     {
       now: monotonicNow,
@@ -22,13 +22,14 @@ export function createEngine(settings: EngineSettings): SessionEngine {
       startCapture: startScreenCapture,
       api,
       seedAges: recentDeliveryAges(Date.now()),
+      ...overrides,
     },
     settings,
   );
 }
 
-export function useSession(settings: EngineSettings) {
-  const [engine] = useState(() => createEngine(settings));
+export function useSession(settings: EngineSettings, overrides?: Partial<EngineDeps>) {
+  const [engine] = useState(() => createEngine(settings, overrides));
   const [state, setState] = useState<EngineState>(() => engine.getState());
   const [clock, setClock] = useState(() => ({ now: monotonicNow(), wall: Date.now() }));
 

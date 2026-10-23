@@ -106,6 +106,21 @@ export class RateLimiter {
     return { ok: true, usedInWindow: d.usedInWindow + 1, token: t };
   }
 
+  /**
+   * Re-stamp a reserved slot at the moment the comment is actually delivered. Network
+   * latency must never shrink the real gap between two comments the user sees, so the
+   * delivery time (not the request time) is what counts. Returns the new token.
+   */
+  commit(token: number, now: number): number {
+    const t = this.effective(now);
+    const i = this.stamps.lastIndexOf(token);
+    const at = Math.max(t, token);
+    if (i === -1) this.stamps.push(at);
+    else this.stamps[i] = at;
+    this.stamps.sort((a, b) => a - b);
+    return at;
+  }
+
   /** Give back a slot that was acquired but never used to speak. */
   release(token: number): void {
     const i = this.stamps.lastIndexOf(token);

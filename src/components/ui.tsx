@@ -14,7 +14,7 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 const SIZES: Record<Size, string> = {
-  md: 'h-11 px-4 text-[15px] gap-2 rounded-xl',
+  md: 'h-11 px-3 text-[15px] gap-1.5 rounded-xl sm:px-4 sm:gap-2',
   lg: 'h-14 px-6 text-[17px] gap-2.5 rounded-2xl',
   icon: 'h-11 w-11 rounded-xl',
 };
@@ -37,7 +37,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <button
       ref={ref}
       type={type}
-      className={`inline-flex select-none items-center justify-center font-semibold transition-[background-color,border-color,color,transform] duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex select-none items-center justify-center font-semibold [&_svg]:shrink-0 transition-[background-color,border-color,color,transform] duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...rest}
     />
   );

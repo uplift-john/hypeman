@@ -108,14 +108,19 @@ export function upsertHistory(entry: HistoryEntry): void {
  */
 export function recordDelivery(nowWall: number, withinMs = 600_000): void {
   const v = read(DELIVERIES_KEY);
-  const list = Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number' && nowWall - x < withinMs) : [];
+  const list = Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number' && Math.abs(nowWall - x) < withinMs) : [];
   list.push(nowWall);
   write(DELIVERIES_KEY, list.slice(-10));
 }
 
-/** Ages of recently delivered comments — seeds the rate limiter. Negative ages (clock moved back) count as "just now". */
+/** Ages of recently delivered comments — seeds the rate limiter. Slightly negative ages (clock moved back) count as "just now". */
 export function recentDeliveryAges(nowWall: number, withinMs = 600_000): number[] {
   const v = read(DELIVERIES_KEY);
   if (!Array.isArray(v)) return [];
-  return v.filter((x): x is number => typeof x === 'number').map((at) => nowWall - at).filter((age) => age < withinMs);
+  // Entries more than 10 min in the future come from a clock that was wrong and has since been
+  // corrected; they can't be trusted, so they're dropped rather than treated as "just now" forever.
+  return v
+    .filter((x): x is number => typeof x === 'number')
+    .map((at) => nowWall - at)
+    .filter((age) => age < withinMs && age > -withinMs);
 }
