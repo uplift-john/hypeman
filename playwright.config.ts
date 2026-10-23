@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const WEB_PORT = 5199;
-const API_PORT = 8799;
+// Overridable so several runs (e.g. parallel reviewers) can't collide.
+const WEB_PORT = Number(process.env.HYPEMAN_E2E_WEB_PORT ?? 5199);
+const API_PORT = Number(process.env.HYPEMAN_E2E_API_PORT ?? 8799);
 
 export default defineConfig({
   testDir: 'tests/e2e',

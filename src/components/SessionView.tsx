@@ -100,9 +100,10 @@ export function SessionView(props: Props) {
         <div className="flex min-w-0 items-center gap-2">
           {mode === 'mock' && <Badge className="hidden min-[400px]:inline-flex">Mock mode</Badge>}
           {live && (
-            <Badge tone={state.paused ? 'neutral' : 'live'} className="max-w-[11rem]">
+            <Badge tone={state.paused ? 'neutral' : 'live'} className="shrink-0">
               <span className={`relative inline-block h-2 w-2 shrink-0 rounded-full bg-current ${state.paused ? '' : 'hm-pulse'}`} aria-hidden="true" />
-              <span className="truncate">{state.paused ? 'Share paused' : 'Sharing screen'}</span>
+              <span className="min-[420px]:hidden">{state.paused ? 'Paused' : 'Live'}</span>
+              <span className="hidden min-[420px]:inline">{state.paused ? 'Share paused' : 'Sharing screen'}</span>
             </Badge>
           )}
           <Button variant="ghost" size="icon" onClick={props.onOpenSettings} aria-label="Settings">

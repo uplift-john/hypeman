@@ -40,8 +40,11 @@ export async function installFakeDisplay(page: Page, opts: { screen?: string; mo
           // A blinking, growing "cursor" so the pixel-diff sees activity.
           const w = 40 + ((state.tick * 37) % 600);
           ctx.fillStyle = v.accent;
-          ctx.fillRect(48, 210 + v.lines.length * 44, w, 24);
+          ctx.fillRect(48, 210 + v.lines.length * 44, w, 40);
         }
+        // Push frames explicitly: with Playwright's fake clock, automatic canvas capture stalls.
+        const t = state.track as (MediaStreamTrack & { requestFrame?: () => void }) | null;
+        if (t && t.readyState === 'live') t.requestFrame?.();
       }
       draw();
       setInterval(() => {
@@ -88,11 +91,12 @@ export async function installFakeDisplay(page: Page, opts: { screen?: string; mo
         state.calls++;
         if (state.mode === 'deny') throw new DOMException('Permission denied', 'NotAllowedError');
         if (state.mode === 'cancel') throw new DOMException('Permission dismissed by user (cancelled)', 'NotAllowedError');
-        const stream = canvas.captureStream(5);
+        const stream = canvas.captureStream(0);
         const track = stream.getVideoTracks()[0];
         const f = fixtures.find((x) => x.id === state.screen) ?? fixtures[0];
         Object.defineProperty(track, 'label', { value: f.title, configurable: true });
         state.track = track;
+        draw();
         return stream;
       };
     },

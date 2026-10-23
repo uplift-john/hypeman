@@ -30,3 +30,14 @@ export async function hypeNow(page: Page) {
 export async function settle(page: Page, ms = 300) {
   await page.waitForTimeout(ms);
 }
+
+/**
+ * Advance the fake clock while the fake screen keeps "changing": run in 20 s chunks and give the
+ * real-time <video> pipeline a moment to pick up new canvas frames between idle-detection samples.
+ */
+export async function workFor(page: Page, ms: number) {
+  for (let done = 0; done < ms; done += 20_000) {
+    await page.clock.runFor(Math.min(20_000, ms - done));
+    await page.waitForTimeout(60);
+  }
+}

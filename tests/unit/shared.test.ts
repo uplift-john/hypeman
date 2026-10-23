@@ -163,10 +163,12 @@ describe('context (mock mode)', () => {
 
 describe('pixel diff', () => {
   it('detects real change but ignores tiny noise', () => {
-    const a = new Uint8ClampedArray(2304).fill(100);
-    const noisy = a.map((v, i) => (i % 50 === 0 ? v + 5 : v));
+    const a = new Uint8ClampedArray(160 * 90).fill(100);
+    const noisy = a.map((v, i) => (i % 50 === 0 ? v + 5 : v)); // compression noise
     expect(lumaDiff(a, noisy).active).toBe(false);
-    const typed = a.map((v, i) => (i < 40 ? 255 : v));
+    const caret = a.map((v, i) => (i === 500 || i === 660 ? 20 : v)); // blinking caret: ~2 pixels
+    expect(lumaDiff(a, caret).active).toBe(false);
+    const typed = a.map((v, i) => (i >= 800 && i < 805) || (i >= 960 && i < 965) ? 40 : v); // one word typed
     expect(lumaDiff(a, typed).active).toBe(true);
     expect(lumaDiff(new Uint8ClampedArray(), new Uint8ClampedArray()).active).toBe(false);
   });

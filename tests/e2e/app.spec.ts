@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { hypeNow, openApp, startSession } from './helpers';
+import { hypeNow, openApp, startSession, workFor } from './helpers';
 
 const status = (page: Page) => page.locator('#status-label');
 
@@ -13,7 +13,7 @@ test.describe('onboarding', () => {
     await expect(privacy).toContainText('You choose what it sees');
     await expect(privacy).toContainText('Nothing is stored');
     await expect(privacy).toContainText('Private stays private');
-    await expect(page.getByText('Mock mode')).toBeVisible();
+    await expect(page.getByText('Mock mode', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start session' })).toBeVisible();
   });
 
@@ -75,7 +75,7 @@ test.describe('session', () => {
     await expect(btn).toContainText(/Next hype in [89]:\d\d/);
     await expect(page.getByTestId('next-hype')).toContainText('Limit reached');
     // hammer it
-    for (let i = 0; i < 15; i++) await btn.click();
+    for (let i = 0; i < 15; i++) await btn.click({ force: true });
     await page.waitForTimeout(500);
     await expect(page.getByTestId('feed').getByRole('listitem')).toHaveCount(2);
     // the countdown actually counts down
@@ -87,7 +87,7 @@ test.describe('session', () => {
   test('an automatic comment arrives on its own within the Normal window', async ({ page }) => {
     await openApp(page);
     await startSession(page);
-    await page.clock.runFor(11 * 60_000 + 5_000);
+    await workFor(page, 11 * 60_000 + 5_000);
     await expect(page.getByTestId('feed').getByRole('listitem')).toHaveCount(1, { timeout: 10_000 });
   });
 
@@ -270,6 +270,7 @@ test.describe('accessibility', () => {
   for (const theme of ['light', 'dark'] as const) {
     test(`axe: no violations on every screen (${theme})`, async ({ page }) => {
       const scan = async (label: string) => {
+        await page.waitForTimeout(700); // let entrance animations (real-time CSS) finish
         const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
         expect(r.violations.map((v) => `${label}: ${v.id} — ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
       };

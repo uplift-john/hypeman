@@ -17,7 +17,8 @@ const allowedOrigins = [
 ];
 
 const generator = generatorFromEnv();
-const app = createApp({ generator, allowedOrigins });
+// The request cap is a cost guard for the paid API; mock mode costs nothing, so it's uncapped there.
+const app = createApp({ generator, allowedOrigins, maxRequests: generator.mode === 'real' ? 12 : Number.POSITIVE_INFINITY });
 
 // Bind to loopback only: the API key proxy must never be reachable from the network.
 serve({ fetch: app.fetch, port, hostname: '127.0.0.1' }, () => {
