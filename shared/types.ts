@@ -31,7 +31,9 @@ export interface HealthResponse {
   /** Where Hypeman's voice comes from. */
   voice?: 'elevenlabs' | 'browser';
   /** Public deployments require a passcode; `user` is null until signed in. */
-  auth?: { required: boolean; user: string | null };
+  auth?: { required: boolean; user: string | null; codesLoaded?: number };
+  /** Vercel environment (production / preview), for troubleshooting. */
+  env?: string;
 }
 
 export const MAX_IMAGE_BYTES = 1_500_000;

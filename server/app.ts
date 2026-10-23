@@ -106,7 +106,8 @@ export function createApp(opts: AppOptions) {
       mode: generator.mode,
       model: generator.model,
       voice: opts.tts ? 'elevenlabs' : 'browser',
-      auth: { required: !!auth, user: user || null },
+      auth: { required: !!auth, user: user || null, codesLoaded: auth ? auth.codes.size : 0 },
+      env: process.env.VERCEL_ENV,
     };
     return c.json(res);
   });
