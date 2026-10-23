@@ -9,7 +9,7 @@ export async function openApp(
   if (opts.theme) await page.emulateMedia({ colorScheme: opts.theme });
   if (opts.settings) {
     await page.addInitScript((s) => {
-      localStorage.setItem('hypeman.settings.v1', JSON.stringify(s));
+      localStorage.setItem('hypeman.settings.v2', JSON.stringify(s));
     }, opts.settings);
   }
   if (opts.clock !== false) await page.clock.install();

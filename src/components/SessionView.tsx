@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import type { Mode } from '../../shared/types';
 import type { EngineState, FeedItem } from '../session/engine';
 import { formatClock, formatCountdown } from '../lib/time';
-import { IconChevron, IconGear, IconMoon, IconPause, IconPlay, IconSparkle, IconStop, IconThumbDown, IconThumbUp, Logo } from './Icons';
+import { IconMute, IconVolume, IconChevron, IconGear, IconMoon, IconPause, IconPlay, IconSparkle, IconStop, IconThumbDown, IconThumbUp, Logo } from './Icons';
 import { useHasScreenshot } from '../hosted/useHasScreenshot';
 import { ScreenshotPanel } from './ScreenshotPanel';
 import { Badge, Button } from './ui';
@@ -32,6 +32,8 @@ interface Props {
   onReact(id: string, r: 'up' | 'down'): void;
   onOpenSettings(): void;
   onDismissNotice(): void;
+  voiceOn: boolean;
+  onToggleVoice(): void;
   quietEnd: string;
 }
 
@@ -124,6 +126,17 @@ export function SessionView(props: Props) {
               <span className="hidden min-[420px]:inline">{state.paused ? 'Share paused' : 'Sharing screen'}</span>
             </Badge>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={props.onToggleVoice}
+            aria-label="Hypeman's voice"
+            aria-pressed={props.voiceOn}
+            title={props.voiceOn ? 'Mute Hypeman' : 'Unmute Hypeman'}
+            data-testid="voice-toggle"
+          >
+            {props.voiceOn ? <IconVolume /> : <IconMute />}
+          </Button>
           <Button variant="ghost" size="icon" onClick={props.onOpenSettings} aria-label="Settings">
             <IconGear />
           </Button>

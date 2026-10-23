@@ -137,7 +137,7 @@ export function SettingsDrawer({ open, settings, onChange, onClose, onClearHisto
             </div>
           </Group>
 
-          <Group title="Voice" hint={voiceSupported() ? 'Read each comment aloud. Off by default.' : 'Spoken comments aren’t supported in this browser.'}>
+          <Group title="Voice" hint={voiceSupported() ? 'Hypeman says each comment out loud. On by default.' : 'Spoken comments aren’t supported in this browser.'}>
             <Switch
               label="Speak comments"
               checked={settings.voiceOn}
@@ -161,7 +161,7 @@ export function SettingsDrawer({ open, settings, onChange, onClose, onClearHisto
                     ))}
                   </select>
                 </label>
-                <Button onClick={() => speak(`${PERSONAS[settings.persona].name} here. That draft is coming along nicely.`, settings.voiceURI)}>
+                <Button onClick={() => speak('Noice! I see what you did there, and I like it.', settings.voiceURI, settings.persona)}>
                   <IconVolume width={18} height={18} /> Test
                 </Button>
               </div>

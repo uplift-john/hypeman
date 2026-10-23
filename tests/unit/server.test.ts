@@ -35,7 +35,8 @@ describe('server', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.speak).toBe(true);
-    expect(json.line).toContain('Q3 Forecast');
+    expect(json.line.length).toBeGreaterThan(0);
+    expect(json.context.subject).toBe('Q3 Forecast');
   });
 
   it('rejects cross-site browser origins (protects the API key)', async () => {

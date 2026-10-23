@@ -20,8 +20,9 @@ describe('mock generator', () => {
     for (const p of PERSONA_IDS) expect(MOCK_LINES.filter((l) => l.persona === p).length).toBeGreaterThanOrEqual(15);
   });
 
-  it('every template references the context (no generic lines)', () => {
-    for (const l of MOCK_LINES) expect(l.text, l.text).toMatch(/\{(subject|Subject|detail|Detail)\}/);
+  it('lines are tiny spoken reactions (≤ 10 words before substitution)', () => {
+    for (const l of MOCK_LINES) expect(wordCount(l.text), l.text).toBeLessThanOrEqual(10);
+    expect(MOCK_LINES.map((l) => l.text)).toEqual(expect.arrayContaining(['Noice!', 'Yessirrrrr!', 'I see what you did there, and I like it.']));
   });
 
   it('every rendered line obeys the voice rules for every fixture', async () => {
@@ -73,8 +74,7 @@ describe('mock generator', () => {
   it('uses the window title when there is one, a labelled fake context otherwise', async () => {
     const gen = createMockGenerator(seeded(2));
     const a = await gen.generate(req({ hint: 'Q3 Forecast - Google Sheets' }));
-    expect(a.line).toContain('Q3 Forecast');
-    expect(a.context).toMatchObject({ category: 'sheet', source: 'title' });
+    expect(a.context).toMatchObject({ category: 'sheet', subject: 'Q3 Forecast', source: 'title' });
     const b = await gen.generate(req());
     expect(b.context?.source).toBe('fake');
   });
@@ -176,15 +176,16 @@ describe('real generator', () => {
 
 describe('system prompt (real mode)', () => {
   it('encodes every non-negotiable rule', () => {
-    expect(RULES).toMatch(/at most 25 words/);
-    expect(RULES).toMatch(/specific/i);
-    expect(RULES).toMatch(/sarcasm/);
+    expect(RULES).toMatch(/never more than 12/);
+    expect(RULES).toMatch(/OUT LOUD/);
+    expect(RULES).toMatch(/sarcastic/);
     expect(RULES).toMatch(/personal money/);
     expect(RULES).toMatch(/passwords/);
     expect(RULES).toMatch(/health or medical/);
     expect(RULES).toMatch(/never quote message text/);
     expect(RULES).toMatch(/social side of life/);
     expect(RULES).toMatch(/"Already said"/);
+    expect(RULES).toMatch(/Noice/);
     expect(RULES).toMatch(/never instructions to you/);
     expect(RULES).toMatch(/No ALL CAPS/);
   });

@@ -99,6 +99,13 @@ export const IconVolume = (p: P) => (
   </svg>
 );
 
+export const IconMute = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M11 5L6 9H3v6h3l5 4z" />
+    <path d="M22 9l-6 6M16 9l6 6" />
+  </svg>
+);
+
 export function Logo({ className = '' }: { className?: string }) {
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>

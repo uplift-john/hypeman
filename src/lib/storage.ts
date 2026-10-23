@@ -21,14 +21,15 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   persona: 'hype',
   frequency: 'normal',
-  voiceOn: false,
+  voiceOn: true,
   voiceURI: null,
   notifications: true,
   quietHours: { enabled: false, start: '22:00', end: '08:00' },
   theme: 'system',
 };
 
-const SETTINGS_KEY = 'hypeman.settings.v1';
+// v2: voice is on by default now (he's meant to be heard).
+const SETTINGS_KEY = 'hypeman.settings.v2';
 const HISTORY_KEY = 'hypeman.history.v1';
 const HISTORY_MAX = 100;
 const DELIVERIES_KEY = 'hypeman.deliveries.v1';

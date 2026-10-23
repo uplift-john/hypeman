@@ -31,9 +31,10 @@ export interface HealthResponse {
 }
 
 export const MAX_IMAGE_BYTES = 1_500_000;
-export const MAX_WORDS = 25;
+/** Spoken out loud: tiny reactions, not paragraphs. */
+export const MAX_WORDS = 12;
 /** Hard ceiling applied after generation — anything longer is dropped, not truncated. */
-export const MAX_WORDS_HARD = 32;
+export const MAX_WORDS_HARD = 16;
 
 export function wordCount(s: string): number {
   return s.trim().split(/\s+/).filter(Boolean).length;

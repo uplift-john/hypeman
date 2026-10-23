@@ -35,11 +35,10 @@ export function createMockGenerator(rng: () => number = Math.random): Generator 
       const ctx = contextFromTitle(req.hint, rng) ?? fakeContext(rng);
       if (ctx.category === 'blank') return silent('nothing-notable', ctx);
 
-      const inCategory = MOCK_LINES.filter((l) => l.category === ctx.category);
-      const ordered = [
-        ...shuffle(inCategory.filter((l) => l.persona === req.persona), rng),
-        ...shuffle(inCategory.filter((l) => l.persona !== req.persona), rng),
-      ];
+      // Mostly quick universal reactions, sometimes one that nods at what's on screen.
+      const mine = MOCK_LINES.filter((l) => l.persona === req.persona && (l.category === ctx.category || l.category === 'any'));
+      const others = MOCK_LINES.filter((l) => l.persona !== req.persona && (l.category === ctx.category || l.category === 'any'));
+      const ordered = [...shuffle(mine, rng), ...shuffle(others, rng)];
       for (const tpl of ordered) {
         const res = postFilter(renderLine(tpl.text, ctx), req.recent);
         if (res.ok) {

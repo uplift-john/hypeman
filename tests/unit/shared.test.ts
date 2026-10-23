@@ -120,11 +120,10 @@ describe('postFilter', () => {
     expect(r).toEqual({ ok: true, line: 'Q3 Forecast is Amazing! That Total column rocks.' });
   });
 
-  it('rejects empty, too long, generic, sensitive and duplicate lines', () => {
+  it('rejects empty, too long, sensitive and duplicate lines (generic hype is fine now)', () => {
     expect(postFilter('   ', []).ok).toBe(false);
     expect(postFilter(Array(40).fill('word').join(' '), [])).toEqual({ ok: false, reason: 'too-long' });
-    expect(postFilter("You've got this!", [])).toEqual({ ok: false, reason: 'generic' });
-    expect(postFilter('Keep up the great work.', [])).toEqual({ ok: false, reason: 'generic' });
+    expect(postFilter('Noice!', [])).toEqual({ ok: true, line: 'Noice!' });
     expect(postFilter('That balance of $4,182 is impressive.', [])).toEqual({ ok: false, reason: 'sensitive-output' });
     expect(postFilter('Slide 7 lands with punch.', ['Slide 7 lands with punch!'])).toEqual({ ok: false, reason: 'duplicate' });
   });
