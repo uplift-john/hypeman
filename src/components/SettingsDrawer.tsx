@@ -6,6 +6,7 @@ import { listVoices, onVoicesChanged, say, voiceSupported } from '../lib/voice';
 import { notificationPermission, requestNotificationPermission } from '../lib/notify';
 import { IconClose, IconTrash, IconVolume } from './Icons';
 import { Button } from './ui';
+import { VoicePicker } from './VoicePicker';
 
 interface Props {
   open: boolean;
@@ -15,6 +16,8 @@ interface Props {
   onClearHistory(): void;
   /** Present on gated deployments. */
   onSignOut?: () => void;
+  /** Where the voice comes from; ElevenLabs gets a voice picker. */
+  voiceSource?: 'elevenlabs' | 'browser';
 }
 
 const FREQ_HELP: Record<Frequency, string> = {
@@ -23,7 +26,7 @@ const FREQ_HELP: Record<Frequency, string> = {
   max: 'As often as allowed — still never more than 2 per 10 minutes.',
 };
 
-export function SettingsDrawer({ open, settings, onChange, onClose, onClearHistory, onSignOut }: Props) {
+export function SettingsDrawer({ open, settings, onChange, onClose, onClearHistory, onSignOut, voiceSource = 'browser' }: Props) {
   const panel = useRef<HTMLDivElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>(() => listVoices());
@@ -139,14 +142,23 @@ export function SettingsDrawer({ open, settings, onChange, onClose, onClearHisto
             </div>
           </Group>
 
-          <Group title="Voice" hint={voiceSupported() ? 'Hypeman says each comment out loud. On by default.' : 'Spoken comments aren’t supported in this browser.'}>
+          <Group title="Voice" hint={
+              voiceSource === 'elevenlabs'
+                ? 'Hypeman talks with an ElevenLabs voice. Press ▶ to preview, then Use.'
+                : 'Using your browser’s built-in voice. Add ELEVENLABS_API_KEY to the server for a real hype-man voice.'
+            }>
             <Switch
               label="Speak comments"
               checked={settings.voiceOn}
               disabled={!voiceSupported()}
               onChange={(v) => onChange({ voiceOn: v })}
             />
-            {settings.voiceOn && voiceSupported() && (
+            {settings.voiceOn && voiceSource === 'elevenlabs' && (
+              <div className="mt-3">
+                <VoicePicker selected={settings.elevenVoiceId} persona={settings.persona} onSelect={(id) => onChange({ elevenVoiceId: id })} />
+              </div>
+            )}
+            {settings.voiceOn && voiceSource === 'browser' && voiceSupported() && (
               <div className="mt-3 flex flex-col gap-2 min-[400px]:flex-row">
                 <label className="flex-1">
                   <span className="sr-only">Voice</span>

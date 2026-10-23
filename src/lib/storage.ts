@@ -13,6 +13,8 @@ export interface Settings {
   frequency: Frequency;
   voiceOn: boolean;
   voiceURI: string | null;
+  /** ElevenLabs voice picked in Settings; null = the server default. */
+  elevenVoiceId: string | null;
   notifications: boolean;
   quietHours: QuietHours;
   theme: ThemePref;
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   frequency: 'normal',
   voiceOn: true,
   voiceURI: null,
+  elevenVoiceId: null,
   notifications: true,
   quietHours: { enabled: false, start: '22:00', end: '08:00' },
   theme: 'system',
@@ -63,6 +66,7 @@ export function loadSettings(): Settings {
     frequency: o.frequency === 'chill' || o.frequency === 'normal' || o.frequency === 'max' ? o.frequency : DEFAULT_SETTINGS.frequency,
     voiceOn: typeof o.voiceOn === 'boolean' ? o.voiceOn : DEFAULT_SETTINGS.voiceOn,
     voiceURI: typeof o.voiceURI === 'string' ? o.voiceURI : null,
+    elevenVoiceId: typeof o.elevenVoiceId === 'string' && /^[A-Za-z0-9]{10,40}$/.test(o.elevenVoiceId) ? o.elevenVoiceId : null,
     notifications: typeof o.notifications === 'boolean' ? o.notifications : DEFAULT_SETTINGS.notifications,
     quietHours: {
       enabled: typeof q.enabled === 'boolean' ? q.enabled : false,

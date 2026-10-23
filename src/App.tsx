@@ -9,7 +9,7 @@ import { ToastRegion } from './components/Toast';
 import { api } from './lib/api';
 import { notify, requestNotificationPermission } from './lib/notify';
 import { loadHistory, loadSettings, recordDelivery, saveSettings, upsertHistory, type Settings } from './lib/storage';
-import { say, setVoiceBackend, stopSpeaking } from './lib/voice';
+import { say, setElevenVoice, setVoiceBackend, stopSpeaking } from './lib/voice';
 import { GREETINGS } from '../shared/personas';
 import { ApiError, type EndReason, type FeedItem, type ManualResult } from './session/engine';
 import { useSession } from './session/useSession';
@@ -50,11 +50,14 @@ export default function App() {
   const [mode, setMode] = useState<Mode | null>(null);
   const [serverDown, setServerDown] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
+  const [voiceSource, setVoiceSource] = useState<'elevenlabs' | 'browser'>('browser');
   const [needsSignIn, setNeedsSignIn] = useState(false);
   const [healthTick, setHealthTick] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toastId, setToastId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<ManualFeedback | null>(null);
+
+  useEffect(() => setElevenVoice(settings.elevenVoiceId), [settings.elevenVoiceId]);
 
   const theme = useResolvedTheme(settings.theme);
   useEffect(() => {
@@ -71,7 +74,9 @@ export default function App() {
         setMode(h.mode);
         setServerDown(false);
         setNeedsSignIn(!!h.auth?.required && !h.auth.user);
-        setVoiceBackend(h.voice === 'elevenlabs' ? 'elevenlabs' : 'browser');
+        const v = h.voice === 'elevenlabs' ? 'elevenlabs' : 'browser';
+        setVoiceBackend(v);
+        setVoiceSource(v);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -229,6 +234,7 @@ export default function App() {
         settings={settings}
         onChange={update}
         onClose={closeDrawer}
+        voiceSource={voiceSource}
         onSignOut={
           !HOSTED
             ? async () => {

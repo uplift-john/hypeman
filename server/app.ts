@@ -218,7 +218,7 @@ export function createApp(opts: AppOptions) {
     if (!(c.req.header('content-type') ?? '').toLowerCase().startsWith('application/json')) {
       return c.json({ error: 'Content-Type must be application/json.' }, 415);
     }
-    let body: { text?: unknown; persona?: unknown };
+    let body: { text?: unknown; persona?: unknown; voiceId?: unknown };
     try {
       body = await c.req.json();
     } catch {
@@ -235,11 +235,47 @@ export function createApp(opts: AppOptions) {
       }
     }
     try {
-      const audio = await tts.synthesize(text, persona, c.req.raw.signal);
+      const audio = await tts.synthesize(text, persona, c.req.raw.signal, typeof body.voiceId === 'string' ? body.voiceId : undefined);
       return c.body(audio, 200, { 'content-type': 'audio/mpeg', 'cache-control': 'no-store' });
     } catch (err) {
       log(`[tts] ${err instanceof TtsError ? err.status : 'error'}`);
       return c.json({ error: err instanceof TtsError ? err.message : 'Voice generation failed.' }, err instanceof TtsError && err.status === 429 ? 429 : 502);
+    }
+  });
+
+  /* ── voice picker ── */
+
+  app.use('/api/voices', async (c, next) => {
+    if (auth && !c.get('user')) return c.json({ error: 'Please sign in.' }, 401);
+    await next();
+  });
+  app.use('/api/voices/*', async (c, next) => {
+    if (auth && !c.get('user')) return c.json({ error: 'Please sign in.' }, 401);
+    await next();
+  });
+
+  app.get('/api/voices', async (c) => {
+    if (!opts.tts) return c.json({ error: 'No ElevenLabs key configured.' }, 404);
+    try {
+      return c.json({ defaultVoiceId: opts.tts.voiceId, voices: await opts.tts.catalog() });
+    } catch {
+      return c.json({ error: 'Couldn’t load voices from ElevenLabs.' }, 502);
+    }
+  });
+
+  app.post('/api/voices/adopt', bodyLimit({ maxSize: 1_000, onError: (c) => c.json({ error: 'Payload too large.' }, 413) }), async (c) => {
+    if (!opts.tts) return c.json({ error: 'No ElevenLabs key configured.' }, 404);
+    let b: { voiceId?: unknown; ownerId?: unknown };
+    try {
+      b = await c.req.json();
+    } catch {
+      return c.json({ error: 'Invalid JSON.' }, 400);
+    }
+    if (typeof b.voiceId !== 'string' || typeof b.ownerId !== 'string') return c.json({ error: 'voiceId and ownerId required.' }, 400);
+    try {
+      return c.json({ voiceId: await opts.tts.adopt(b.voiceId, b.ownerId) });
+    } catch (err) {
+      return c.json({ error: err instanceof TtsError ? err.message : 'Couldn’t add that voice.' }, 502);
     }
   });
 

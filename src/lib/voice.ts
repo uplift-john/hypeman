@@ -26,13 +26,22 @@ const PROSODY: Record<string, { rate: number; pitch: number }> = {
   bestie: { rate: 1.08, pitch: 1.2 },
 };
 
-// He's Hypeman: prefer male English voices for the browser fallback.
-const PREFERRED = /\b(guy|alex|daniel|aaron|fred|tom|david|mark|james|ryan|christopher|eric|andrew|brian)\b|google uk english male|male/i;
+// Browser fallback only (ElevenLabs is the real voice). He's an American guy: US English male
+// voices in rough order of naturalness across Edge/Windows, macOS and Chrome. Never British, never female.
+const US_MALE = [
+  /andrew.*natural/i, /brian.*natural/i, /guy.*natural/i, /christopher.*natural/i, /eric.*natural/i, /roger.*natural/i, /steffan.*natural/i, /davis/i, /tony/i, /jason/i,
+  /\baaron\b/i, /\bevan\b/i, /\bnathan\b/i, /\btom\b/i, /\balex\b/i, /\breed\b/i,
+  /\b(guy|andrew|brian|christopher|eric|roger|mark|david|james)\b/i,
+];
 
-/** The voice we use when the user hasn't picked one: a natural-sounding English voice if available. */
-export function defaultVoice(): SpeechSynthesisVoice | undefined {
-  const voices = listVoices().filter((v) => /^en/i.test(v.lang));
-  return voices.find((v) => PREFERRED.test(v.name) && !/compact/i.test(v.name)) ?? voices.find((v) => v.default) ?? voices[0];
+/** The voice we use when the user hasn't picked one. */
+export function defaultVoice(): { voice: SpeechSynthesisVoice | undefined; male: boolean } {
+  const us = listVoices().filter((v) => /^en[-_]US/i.test(v.lang));
+  for (const re of US_MALE) {
+    const v = us.find((x) => re.test(x.name) && !/novelty|compact/i.test(x.name));
+    if (v) return { voice: v, male: true };
+  }
+  return { voice: us[0], male: false };
 }
 
 /** Make hype slang pronounceable: "yessirrrrr" → "yessirr", "gooooo" → "goo". */
@@ -47,9 +56,20 @@ let backend: Backend = 'browser';
 let current: HTMLAudioElement | null = null;
 let packLookup: ((key: string) => string | undefined) | null = null;
 
+let elevenVoiceId: string | null = null;
+
 /** Set from /api/health: 'elevenlabs' when the server has an ElevenLabs key. */
 export function setVoiceBackend(b: Backend): void {
   backend = b;
+}
+
+export function voiceBackend(): Backend {
+  return backend;
+}
+
+/** The ElevenLabs voice picked in Settings (null = the server's default). */
+export function setElevenVoice(id: string | null): void {
+  elevenVoiceId = id;
 }
 
 /** Hosted build: pre-recorded ElevenLabs clips keyed by `${persona}|${text}`. */
@@ -87,13 +107,32 @@ export async function say(text: string, voiceURI: string | null, persona = 'hype
   }
   if (backend === 'elevenlabs') {
     try {
-      const res = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, persona }) });
+      const res = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, persona, voiceId: elevenVoiceId ?? undefined }) });
       if (res.ok) return await playUrl(URL.createObjectURL(await res.blob()), true);
     } catch {
       // fall through to the browser voice
     }
   }
+  await voicesReady();
   speak(text, voiceURI, persona);
+}
+
+/** Browsers load voices lazily; the first call can otherwise land on a random default voice. */
+function voicesReady(): Promise<void> {
+  if (!voiceSupported() || listVoices().length) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', done);
+      resolve();
+    };
+    window.speechSynthesis.addEventListener('voiceschanged', done);
+    setTimeout(done, 1200);
+  });
+}
+
+/** Play an ElevenLabs preview clip (Settings → voice picker). */
+export function playPreview(url: string): void {
+  void playUrl(url, false).catch(() => {});
 }
 
 export function speak(text: string, voiceURI: string | null, persona = 'hype'): void {
@@ -101,14 +140,16 @@ export function speak(text: string, voiceURI: string | null, persona = 'hype'): 
   try {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(forSpeech(text));
-    const v = (voiceURI ? listVoices().find((x) => x.voiceURI === voiceURI) : undefined) ?? defaultVoice();
-    if (v) {
-      u.voice = v;
-      u.lang = v.lang;
+    const picked = voiceURI ? listVoices().find((x) => x.voiceURI === voiceURI) : undefined;
+    const fallback = picked ? { voice: picked, male: true } : defaultVoice();
+    if (fallback.voice) {
+      u.voice = fallback.voice;
+      u.lang = fallback.voice.lang;
     }
     const p = PROSODY[persona] ?? PROSODY.hype;
     u.rate = p.rate;
-    u.pitch = p.pitch;
+    // No US male voice on this device: drop the pitch so at least it doesn't sound like a woman.
+    u.pitch = fallback.male ? p.pitch : Math.min(p.pitch, 0.7);
     window.speechSynthesis.speak(u);
   } catch {
     // ignore

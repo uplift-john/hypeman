@@ -90,3 +90,61 @@ describe('/api/tts', () => {
     expect(await res.text()).not.toContain('sk_secret');
   });
 });
+
+describe('voice picker', () => {
+  const lib = {
+    voices: [
+      { voice_id: 'GymBroVoice0001', public_owner_id: 'owner000000001', name: 'Chad', accent: 'american', descriptive: 'energetic', use_case: 'social media', preview_url: 'https://x/p.mp3' },
+      { voice_id: 'BritVoice000001', public_owner_id: 'owner000000002', name: 'Nigel', accent: 'british', preview_url: 'https://x/n.mp3' },
+    ],
+  };
+  const acct = {
+    voices: [
+      { voice_id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam', preview_url: 'https://x/l.mp3', labels: { gender: 'male', accent: 'american', age: 'young' } },
+      { voice_id: 'FemaleVoice0001', name: 'Rachel', labels: { gender: 'female' } },
+    ],
+  };
+  function fake() {
+    return vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes('/v1/shared-voices')) return new Response(JSON.stringify(lib));
+      if (url.endsWith('/v1/voices')) return new Response(JSON.stringify(acct));
+      if (url.includes('/v1/voices/add/')) return new Response(JSON.stringify({ voice_id: 'AddedVoice00001' }));
+      if (url.includes('/v1/text-to-speech/')) return new Response(mp3);
+      return new Response('{}', { status: 404, headers: init?.headers as HeadersInit });
+    });
+  }
+
+  it('lists male voices only, American library voices only, account voices first', async () => {
+    const tts = createElevenLabsTts({ apiKey: 'k', fetch: fake() as unknown as typeof fetch });
+    const list = await tts.catalog();
+    expect(list.map((v) => v.name)).toEqual(['Liam', 'Chad']);
+    expect(list[1]).toMatchObject({ ownerId: 'owner000000001', previewUrl: 'https://x/p.mp3' });
+  });
+
+  it('adopting a library voice adds it to the account and returns the usable id', async () => {
+    const f = fake();
+    const tts = createElevenLabsTts({ apiKey: 'k', fetch: f as unknown as typeof fetch });
+    expect(await tts.adopt('GymBroVoice0001', 'owner000000001')).toBe('AddedVoice00001');
+    await expect(tts.adopt('bad id!', 'owner000000001')).rejects.toThrow();
+  });
+
+  it('synthesize uses the picked voice when valid, the default otherwise', async () => {
+    const f = fake();
+    const tts = createElevenLabsTts({ apiKey: 'k', fetch: f as unknown as typeof fetch });
+    await tts.synthesize('Noice!', 'hype', undefined, 'AddedVoice00001');
+    await tts.synthesize('Noice!', 'hype', undefined, '../../evil');
+    const urls = f.mock.calls.map((c) => String(c[0]));
+    expect(urls[0]).toContain('/text-to-speech/AddedVoice00001');
+    expect(urls[1]).toContain(`/text-to-speech/${DEFAULT_VOICE_ID}`);
+  });
+
+  it('/api/voices requires sign-in on a gated deployment', async () => {
+    const { parseAccessCodes } = await import('../../server/auth');
+    const tts = createElevenLabsTts({ apiKey: 'k', fetch: fake() as unknown as typeof fetch });
+    const app = createApp({ generator: createMockGenerator(seeded(1)), tts, allowedOrigins: [], auth: { codes: parseAccessCodes('a:b'), secret: 's'.repeat(32), secureCookie: false }, log: () => {} });
+    expect((await app.request('/api/voices')).status).toBe(401);
+    const open = createApp({ generator: createMockGenerator(seeded(1)), tts, allowedOrigins: [], log: () => {} });
+    const body = await (await open.request('/api/voices')).json();
+    expect(body.voices.length).toBe(2);
+  });
+});
