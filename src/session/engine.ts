@@ -95,6 +95,8 @@ export interface EngineSettings {
   quietHours: QuietHours;
   /** False in mock mode: the server doesn't need pixels, so none are sent. */
   sendFrame: boolean;
+  /** Speak with the recorded clip pack (when one exists). */
+  useClips?: boolean;
 }
 
 /* ───────────────────────── state exposed to the UI ───────────────────────── */
@@ -112,6 +114,8 @@ export interface FeedItem {
   trigger: 'auto' | 'manual' | 'moment';
   reaction: 'up' | 'down' | null;
   context?: HypeResponse['context'];
+  /** A recorded clip, when the clip pack is in use. */
+  clipId?: string;
 }
 
 export interface LastLook {
@@ -187,6 +191,7 @@ export class SessionEngine {
   private kind: SessionKind = 'watch';
   private transcriptSource: (() => string) | null = null;
   private lastMomentCall = -Infinity;
+  private recentClips: string[] = [];
 
   private capture: CaptureHandle | null = null;
   private lastThumb: Uint8ClampedArray | null = null;
@@ -394,6 +399,7 @@ export class SessionEngine {
     this.endReason = null;
     this.feed = [];
     this.recent = [];
+    this.recentClips = [];
     this.notice = null;
     this.lastLook = null;
     this.emit();
@@ -593,6 +599,8 @@ export class SessionEngine {
         hint: capture.hint,
         trigger,
         transcript,
+        useClips: this.settings.useClips || undefined,
+        recentClips: this.settings.useClips ? this.recentClips : undefined,
       });
     } catch (err) {
       if (epoch !== this.epoch) return abandon({ kind: 'unavailable' });
@@ -609,7 +617,9 @@ export class SessionEngine {
     this.backoffUntil = 0;
     if (this.notice?.kind === 'error') this.notice = null;
 
-    if (!res.speak || !res.line.trim() || isNearDuplicate(res.line, this.recent)) {
+    const isClip = !!res.clipId;
+    const repeated = isClip ? this.recentClips.slice(-3).includes(res.clipId!) : !res.line.trim() || isNearDuplicate(res.line, this.recent);
+    if (!res.speak || repeated) {
       const reason = res.speak ? 'duplicate' : res.reason;
       this.lastLook = { at: this.deps.now(), outcome: 'silent', detail: reason };
       return abandon({ kind: 'silent', reason });
@@ -623,13 +633,15 @@ export class SessionEngine {
       trigger,
       reaction: null,
       context: res.context,
+      clipId: res.clipId,
     };
     // Count the comment from when the user sees it, not from when we asked.
     this.limiter.commit(token, this.deps.now());
     this.inflightToken = null;
     this.lastLook = { at: this.deps.now(), outcome: 'spoke' };
     this.feed = [item, ...this.feed];
-    this.recent = remember(this.recent, item.line);
+    if (item.line) this.recent = remember(this.recent, item.line);
+    if (item.clipId) this.recentClips = [...this.recentClips, item.clipId].slice(-10);
     this.thinking = false;
     this.emit();
     for (const l of this.commentListeners) l(item);

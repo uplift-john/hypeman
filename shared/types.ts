@@ -15,6 +15,10 @@ export interface HypeRequest {
   trigger: 'auto' | 'manual' | 'moment';
   /** Listen mode: the last ~45 s of the conversation as speech-to-text. Never stored or logged. */
   transcript?: string;
+  /** Speak with the recorded clip pack instead of text-to-speech. */
+  useClips?: boolean;
+  /** Clip ids played recently (so the same clip isn't repeated). */
+  recentClips?: string[];
 }
 
 export const MAX_TRANSCRIPT_CHARS = 2_000;
@@ -28,6 +32,8 @@ export interface HypeResponse {
   /** Short machine-ish reason, e.g. "sensitive", "duplicate", "nothing-notable", "ok". */
   reason: string;
   mode: Mode;
+  /** Set when the reaction is one of the recorded clips. */
+  clipId?: string;
   /** Mock mode only: the (fake or title-derived) context the line is about. */
   context?: { category: Category; subject: string; source: 'title' | 'fake' };
 }

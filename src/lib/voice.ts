@@ -167,6 +167,15 @@ function voicesReady(): Promise<void> {
   });
 }
 
+/** Play one of Hypeman's recorded clips (the real voice). Falls back to `fallbackText` via TTS. */
+export async function playClip(src: string, fallbackText: string, voiceURI: string | null, persona = 'hype'): Promise<void> {
+  try {
+    await playUrl(src, false);
+  } catch (e) {
+    if (fallbackText && !(e instanceof DOMException && e.name === 'NotAllowedError')) await say(fallbackText, voiceURI, persona);
+  }
+}
+
 /** Play an ElevenLabs preview clip (Settings → voice picker). */
 export function playPreview(url: string): void {
   void playUrl(url, false).catch(() => {});

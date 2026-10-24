@@ -23,7 +23,8 @@
     "build:hosted": "node scripts/build-hosted.mjs",
     "pick-voice": "tsx scripts/pick-voice.ts",
     "voice-pack": "tsx scripts/render-voice-pack.ts",
-    "build:vercel": "node scripts/build-vercel.mjs"
+    "build:vercel": "node scripts/build-vercel.mjs",
+    "clips:import": "node scripts/import-clips.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.2.0",

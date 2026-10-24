@@ -439,7 +439,7 @@ function Feed({ items, live, status, mode, onReact }: { items: FeedItem[]; live:
         <ol className="mt-3 flex flex-col gap-3" data-testid="feed">
           {items.map((item) => (
             <li key={item.id} className="hm-fade-up rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-card sm:p-5">
-              <p className="font-display text-[17px] font-semibold leading-snug text-pretty">{item.line}</p>
+              <p className="font-display text-[17px] font-semibold leading-snug text-pretty">{item.line || '🔊 (recorded clip)'}</p>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-muted">
                   <time dateTime={new Date(item.at).toISOString()}>{formatClock(item.at)}</time>

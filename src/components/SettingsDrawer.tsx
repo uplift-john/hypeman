@@ -7,6 +7,7 @@ import { notificationPermission, requestNotificationPermission } from '../lib/no
 import { IconClose, IconTrash, IconVolume } from './Icons';
 import { Button } from './ui';
 import { VoicePicker } from './VoicePicker';
+import { CLIPS, hasClips } from '../../shared/clips';
 
 interface Props {
   open: boolean;
@@ -153,6 +154,12 @@ export function SettingsDrawer({ open, settings, onChange, onClose, onClearHisto
               disabled={!voiceSupported()}
               onChange={(v) => onChange({ voiceOn: v })}
             />
+            {hasClips && (
+              <div className="mt-3">
+                <Switch label={`Use my recorded clips (${CLIPS.length})`} checked={settings.useClips} onChange={(v) => onChange({ useClips: v })} />
+                <p className="mt-1 text-sm text-muted">{settings.useClips ? 'Hypeman reacts with your recorded clips; the voice below is only a backup.' : 'Using generated speech.'}</p>
+              </div>
+            )}
             {settings.voiceOn && voiceSource === 'elevenlabs' && (
               <div className="mt-3">
                 <VoicePicker selected={settings.elevenVoiceId} persona={settings.persona} onSelect={(id) => onChange({ elevenVoiceId: id })} />

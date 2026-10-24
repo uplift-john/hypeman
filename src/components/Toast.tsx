@@ -77,7 +77,7 @@ function ToastCard({ item, personaName, onDismiss, onReact }: { item: FeedItem; 
             <IconClose width={18} height={18} />
           </button>
         </div>
-        <p className="mt-1 pr-2 font-display text-[19px] font-semibold leading-snug text-pretty">{item.line}</p>
+        <p className="mt-1 pr-2 font-display text-[19px] font-semibold leading-snug text-pretty">{item.line || '🔊 (recorded clip)'}</p>
         <div className="mt-3 flex items-center justify-between gap-2">
           <p className="text-xs text-muted">{held ? 'Held while you hover' : 'Hover to keep it here'}</p>
           <ReactionButtons item={item} onReact={onReact} compact />

@@ -53,6 +53,8 @@ export function parseHypeRequest(body: unknown): Parsed {
       trigger: b.trigger,
       recent: (b.recent as string[]).slice(-20).map((r) => r.slice(0, 300)),
       hint: typeof b.hint === 'string' ? b.hint.slice(0, 200) : undefined,
+      useClips: b.useClips === true,
+      recentClips: Array.isArray(b.recentClips) ? b.recentClips.filter((x): x is string => typeof x === 'string').slice(-20) : [],
       // Keep the most recent part of the conversation.
       transcript: typeof b.transcript === 'string' && b.transcript.trim() ? b.transcript.trim().slice(-MAX_TRANSCRIPT_CHARS) : undefined,
       image: b.image as string | undefined,

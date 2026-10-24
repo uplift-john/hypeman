@@ -1,0 +1,67 @@
+{
+  "clips": [
+    {
+      "id": "clip01",
+      "src": "/clips/clip01.mp3",
+      "text": "",
+      "vibe": "any",
+      "durationMs": 2534
+    },
+    {
+      "id": "clip02",
+      "src": "/clips/clip02.mp3",
+      "text": "",
+      "vibe": "any",
+      "durationMs": 2664
+    },
+    {
+      "id": "clip03",
+      "src": "/clips/clip03.mp3",
+      "text": "",
+      "vibe": "any",
+      "durationMs": 3161
+    },
+    {
+      "id": "clip04",
+      "src": "/clips/clip04.mp3",
+      "text": "",
+      "vibe": "any",
+      "durationMs": 4598
+    },
+    {
+      "id": "clip05",
+      "src": "/clips/clip05.mp3",
+      "text": "",
+      "vibe": "any",
+      "durationMs": 3579
+    },
+    {
+      "id": "clip06",
+      "src": "/clips/clip06.mp3",
+      "text": "",
+      "vibe": "any",
+      "durationMs": 2351
+    },
+    {
+      "id": "clip07",
+      "src": "/clips/clip07.mp3",
+      "text": "",
+      "vibe": "any",
+      "durationMs": 2873
+    },
+    {
+      "id": "clip08",
+      "src": "/clips/clip08.mp3",
+      "text": "",
+      "vibe": "any",
+      "durationMs": 3056
+    },
+    {
+      "id": "clip09",
+      "src": "/clips/clip09.mp3",
+      "text": "",
+      "vibe": "any",
+      "durationMs": 3318
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { contextFromTitle, fakeContext, type ScreenContext } from '../../shared/context';
+import { hasClips, pickClip } from '../../shared/clips';
 import { MOCK_LINES, TALK_LINES, renderLine, talkVibe } from '../../shared/mockLines';
 import { postFilter } from '../../shared/postFilter';
 import { isSensitiveHint, isSensitiveTalk } from '../../shared/sensitive';
@@ -19,10 +20,25 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
  * Same rules as real mode: silence on sensitive/blank screens, never repeats.
  */
 export function createMockGenerator(rng: () => number = Math.random): Generator {
+  const base = createMockLines(rng);
   return {
     mode: 'mock',
     model: null,
     async generate(req: HypeRequest): Promise<HypeResponse> {
+      const res = await base(req);
+      // With a recorded clip pack, speak in the real voice: a clip matching the moment's vibe.
+      if (res.speak && req.useClips && hasClips) {
+        const vibe = req.transcript ? talkVibe(req.transcript) : 'any';
+        const clip = pickClip({ vibe, recent: req.recentClips ?? [], rng });
+        if (clip) return { ...res, line: clip.text, clipId: clip.id };
+      }
+      return res;
+    },
+  };
+}
+
+function createMockLines(rng: () => number) {
+  return async function generate(req: HypeRequest): Promise<HypeResponse> {
       const silent = (reason: string, ctx?: ScreenContext): HypeResponse => ({
         speak: false,
         line: '',
@@ -66,6 +82,5 @@ export function createMockGenerator(rng: () => number = Math.random): Generator 
         }
       }
       return silent('exhausted', ctx);
-    },
   };
 }

@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { CLIPS, hasClips, pickClip } from '../../shared/clips';
 import { postFilter } from '../../shared/postFilter';
 import type { HypeRequest, HypeResponse } from '../../shared/types';
 import { RESPONSE_SCHEMA, systemPrompt, userPrompt } from '../prompt';
@@ -27,7 +28,8 @@ export function createRealGenerator(client: MessagesClient): Generator {
       if (!img && !req.transcript) return silent('no-frame');
       const content: Anthropic.Beta.BetaContentBlockParam[] = [];
       if (img) content.push({ type: 'image', source: { type: 'base64', media_type: img.media_type, data: img.data } });
-      content.push({ type: 'text', text: userPrompt({ recent: req.recent, hint: req.hint, trigger: req.trigger, transcript: req.transcript, hasImage: !!img }) });
+      const clipLines = req.useClips ? CLIPS.filter((c) => c.text && !req.recentClips?.includes(c.id)).map((c) => c.text) : undefined;
+      content.push({ type: 'text', text: userPrompt({ recent: req.recent, hint: req.hint, trigger: req.trigger, transcript: req.transcript, hasImage: !!img, clipLines }) });
 
       let message: Anthropic.Beta.BetaMessage;
       try {
@@ -58,6 +60,10 @@ export function createRealGenerator(client: MessagesClient): Generator {
       const parsed = parseModelJson(text);
       if (!parsed) return silent('unparseable');
       if (!parsed.speak) return silent(normaliseReason(parsed.reason));
+      if (req.useClips && hasClips) {
+        const clip = pickClip({ vibe: parsed.vibe, line: parsed.line, recent: req.recentClips ?? [], rng: Math.random });
+        if (clip) return { speak: true, line: clip.text, clipId: clip.id, reason: 'ok', mode: 'real' };
+      }
       const res = postFilter(parsed.line, req.recent);
       if (!res.ok) return silent(res.reason);
       return { speak: true, line: res.line, reason: 'ok', mode: 'real' };
@@ -65,7 +71,7 @@ export function createRealGenerator(client: MessagesClient): Generator {
   };
 }
 
-export function parseModelJson(text: string): { speak: boolean; line: string; reason: string } | null {
+export function parseModelJson(text: string): { speak: boolean; line: string; reason: string; vibe?: string } | null {
   try {
     const start = text.indexOf('{');
     const end = text.lastIndexOf('}');
@@ -74,7 +80,7 @@ export function parseModelJson(text: string): { speak: boolean; line: string; re
     if (!v || typeof v !== 'object') return null;
     const o = v as Record<string, unknown>;
     if (typeof o.speak !== 'boolean' || typeof o.line !== 'string') return null;
-    return { speak: o.speak, line: o.line, reason: typeof o.reason === 'string' ? o.reason : '' };
+    return { speak: o.speak, line: o.line, reason: typeof o.reason === 'string' ? o.reason : '', vibe: typeof o.vibe === 'string' ? o.vibe : undefined };
   } catch {
     return null;
   }

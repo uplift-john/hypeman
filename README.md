@@ -49,6 +49,10 @@ Hypeman talks out loud — voice is on by default, with a mute button in the ses
 - **Hosted page:** it can't call ElevenLabs at runtime, so `npm run voice-pack` pre-records every reaction into `voice-pack/pack.json`, and `npm run build:hosted` bakes the clips in. Claude then picks the best-fitting recorded reaction, so the hosted page always speaks in the real voice.
 - **Without a key**, the browser's built-in voice is used (a male English voice where available).
 
+## Recorded clips (the real voice)
+
+Hypeman's best voice is a real one. Drop recordings in `clips/raw/` (one line per file: m4a, wav or mp3), say what each one says in `clips/clips.json` (`{ "id": "clip01", "text": "Yesssir!", "vibe": "win" }`; vibes: `funny`, `win`, `agree`, `greeting`, `any`) and run `npm run clips:import`. It trims silence, normalises loudness to −16 LUFS and writes `public/clips/` plus the manifest. Claude then decides *whether* to react and *what kind of moment* it is, and Hypeman plays a matching clip (never one of the last few). Settings → Voice → "Use my recorded clips" switches back to generated speech.
+
 ## Privacy guarantees
 
 - **You choose what it sees.** Only the window/tab/screen you pick in the browser's own dialog. A red **Live / Sharing screen** badge shows whenever capture is on; Stop ends it instantly, and ending the share from the browser ends the session.

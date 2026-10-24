@@ -9,8 +9,9 @@ import { ToastRegion } from './components/Toast';
 import { api } from './lib/api';
 import { notify, requestNotificationPermission } from './lib/notify';
 import { loadHistory, loadSettings, recordDelivery, saveSettings, upsertHistory, type Settings } from './lib/storage';
-import { onSpeakingChange, onVoiceError, say, setElevenVoice, setVoiceBackend, stopSpeaking } from './lib/voice';
+import { onSpeakingChange, onVoiceError, playClip, say, setElevenVoice, setVoiceBackend, stopSpeaking } from './lib/voice';
 import { GREETINGS } from '../shared/personas';
+import { clipById, greetingClip, hasClips } from '../shared/clips';
 import { ApiError, type EndReason, type FeedItem, type ManualResult } from './session/engine';
 import { useSession } from './session/useSession';
 import { createListener, listenSupported } from './listen/listener';
@@ -102,8 +103,14 @@ export default function App() {
   }, []);
 
   const engineSettings = useMemo(
-    () => ({ persona: settings.persona, frequency: settings.frequency, quietHours: settings.quietHours, sendFrame: mode === 'real' || HOSTED }),
-    [settings.persona, settings.frequency, settings.quietHours, mode],
+    () => ({
+      persona: settings.persona,
+      frequency: settings.frequency,
+      quietHours: settings.quietHours,
+      sendFrame: mode === 'real' || HOSTED,
+      useClips: hasClips && settings.useClips && !HOSTED,
+    }),
+    [settings.persona, settings.frequency, settings.quietHours, settings.useClips, mode],
   );
   const { engine, state, now, wallNow } = useSession(engineSettings, hostedDeps);
 
@@ -132,7 +139,11 @@ export default function App() {
         setToastId(item.id);
         recordDelivery(item.at);
         upsertHistory({ id: item.id, at: item.at, line: item.line, persona: settings.persona, reaction: null });
-        if (settings.voiceOn) void say(item.line, settings.voiceURI, settings.persona);
+        if (settings.voiceOn) {
+          const clip = clipById(item.clipId);
+          if (clip) void playClip(clip.src, item.line, settings.voiceURI, settings.persona);
+          else void say(item.line, settings.voiceURI, settings.persona);
+        }
         if (settings.notifications && document.visibilityState === 'hidden') notify(item.line);
       }),
     [engine, settings.persona, settings.voiceOn, settings.voiceURI, settings.notifications],
@@ -167,9 +178,13 @@ export default function App() {
     // Start hearing on the click itself so the mic prompt appears right away.
     if (kind !== 'watch') listener.start();
     // Say hi on the Start click itself: proves the sound works and unlocks speech for later.
-    if (settings.voiceOn) void say(GREETINGS[settings.persona], settings.voiceURI, settings.persona);
+    if (settings.voiceOn) {
+      const hello = hasClips && settings.useClips && !HOSTED ? greetingClip() : undefined;
+      if (hello) void playClip(hello.src, GREETINGS[settings.persona], settings.voiceURI, settings.persona);
+      else void say(GREETINGS[settings.persona], settings.voiceURI, settings.persona);
+    }
     await engine.start();
-  }, [engine, listener, kind, settings.notifications, settings.voiceOn, settings.voiceURI, settings.persona, state.phase]);
+  }, [engine, listener, kind, settings.notifications, settings.voiceOn, settings.voiceURI, settings.persona, settings.useClips, state.phase]);
 
   const stop = useCallback(() => {
     stopSpeaking();

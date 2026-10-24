@@ -101,7 +101,7 @@ describe('real generator', () => {
     expect(params.model).toBe(MODEL);
     expect(MODEL).toBe('claude-sonnet-5-5');
     expect(params.output_config.format.type).toBe('json_schema');
-    expect(params.output_config.format.schema.required).toEqual(['speak', 'line', 'reason']);
+    expect(params.output_config.format.schema.required).toEqual(['speak', 'line', 'vibe', 'reason']);
     expect(params.system).toContain('Coach');
     expect(params.system).toContain(RULES);
     const content = params.messages[0].content;

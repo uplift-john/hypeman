@@ -18,6 +18,8 @@ export interface Settings {
   elevenVoiceId: string | null;
   /** Hear the room (mic), watch the screen, or both. */
   sessionKind: SessionKind;
+  /** Speak with the recorded clip pack instead of text-to-speech (when a pack exists). */
+  useClips: boolean;
   notifications: boolean;
   quietHours: QuietHours;
   theme: ThemePref;
@@ -30,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceURI: null,
   elevenVoiceId: null,
   sessionKind: 'listen',
+  useClips: true,
   notifications: true,
   quietHours: { enabled: false, start: '22:00', end: '08:00' },
   theme: 'system',
@@ -70,6 +73,7 @@ export function loadSettings(): Settings {
     frequency: o.frequency === 'chill' || o.frequency === 'normal' || o.frequency === 'max' ? o.frequency : DEFAULT_SETTINGS.frequency,
     voiceOn: typeof o.voiceOn === 'boolean' ? o.voiceOn : DEFAULT_SETTINGS.voiceOn,
     voiceURI: typeof o.voiceURI === 'string' ? o.voiceURI : null,
+    useClips: typeof o.useClips === 'boolean' ? o.useClips : true,
     sessionKind: o.sessionKind === 'watch' || o.sessionKind === 'both' || o.sessionKind === 'listen' ? o.sessionKind : DEFAULT_SETTINGS.sessionKind,
     elevenVoiceId: typeof o.elevenVoiceId === 'string' && /^[A-Za-z0-9]{10,40}$/.test(o.elevenVoiceId) ? o.elevenVoiceId : null,
     notifications: typeof o.notifications === 'boolean' ? o.notifications : DEFAULT_SETTINGS.notifications,
