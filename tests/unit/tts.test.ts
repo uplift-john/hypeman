@@ -15,7 +15,7 @@ function fakeEleven(status = 200) {
 describe('ElevenLabs client', () => {
   it('posts to the text-to-speech endpoint with the key in a header, never the URL', async () => {
     const f = fakeEleven();
-    const tts = createElevenLabsTts({ apiKey: 'sk_secret', fetch: f as unknown as typeof fetch });
+    const tts = createElevenLabsTts({ apiKey: 'sk_secret', voiceId: DEFAULT_VOICE_ID, fetch: f as unknown as typeof fetch });
     const audio = await tts.synthesize('Noice!', 'hype');
     expect(audio.byteLength).toBe(6);
     const [url, init] = f.mock.calls[0];
@@ -29,7 +29,7 @@ describe('ElevenLabs client', () => {
 
   it('caches repeated lines (saves credits)', async () => {
     const f = fakeEleven();
-    const tts = createElevenLabsTts({ apiKey: 'k', fetch: f as unknown as typeof fetch });
+    const tts = createElevenLabsTts({ apiKey: 'k', voiceId: DEFAULT_VOICE_ID, fetch: f as unknown as typeof fetch });
     await tts.synthesize('Yessir!', 'hype');
     await tts.synthesize('Yessir!', 'hype');
     expect(f).toHaveBeenCalledTimes(1);
@@ -130,12 +130,45 @@ describe('voice picker', () => {
 
   it('synthesize uses the picked voice when valid, the default otherwise', async () => {
     const f = fake();
-    const tts = createElevenLabsTts({ apiKey: 'k', fetch: f as unknown as typeof fetch });
+    const tts = createElevenLabsTts({ apiKey: 'k', voiceId: DEFAULT_VOICE_ID, fetch: f as unknown as typeof fetch });
     await tts.synthesize('Noice!', 'hype', undefined, 'AddedVoice00001');
     await tts.synthesize('Noice!', 'hype', undefined, '../../evil');
     const urls = f.mock.calls.map((c) => String(c[0]));
     expect(urls[0]).toContain('/text-to-speech/AddedVoice00001');
     expect(urls[1]).toContain(`/text-to-speech/${DEFAULT_VOICE_ID}`);
+  });
+
+  it('with no voice pinned, the default is auto-picked: a library gym-bro voice, added to the account', async () => {
+    const f = fake();
+    const tts = createElevenLabsTts({ apiKey: 'k', fetch: f as unknown as typeof fetch });
+    await tts.synthesize('Noice!', 'hype');
+    const urls = f.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes('/v1/voices/add/owner000000001/GymBroVoice0001'))).toBe(true);
+    expect(urls.at(-1)).toContain('/text-to-speech/AddedVoice00001');
+    expect(tts.voiceId).toBe('AddedVoice00001');
+  });
+
+  it('if the account can’t use library voices, it falls back to the premade bro voice instead of going silent', async () => {
+    const f = vi.fn(async (url: string) => {
+      if (url.includes('/v1/shared-voices')) return new Response(JSON.stringify(lib));
+      if (url.endsWith('/v1/voices')) return new Response(JSON.stringify(acct));
+      if (url.includes('/v1/voices/add/')) return new Response(JSON.stringify({ voice_id: 'AddedVoice00001' }));
+      if (url.includes('/text-to-speech/AddedVoice00001')) return new Response(JSON.stringify({ detail: { status: 'payment_required', message: 'Library voices need a paid plan' } }), { status: 402 });
+      return new Response(mp3);
+    });
+    const tts = createElevenLabsTts({ apiKey: 'k', fetch: f as unknown as typeof fetch });
+    expect((await tts.synthesize('Noice!', 'hype')).byteLength).toBe(6);
+    expect(String(f.mock.calls.at(-1)![0])).toContain(`/text-to-speech/${DEFAULT_VOICE_ID}`);
+    expect(tts.voiceId).toBe(DEFAULT_VOICE_ID); // remembered for next time
+  });
+
+  it('check() reports ElevenLabs’ own error message, never the key', async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ detail: { status: 'quota_exceeded', message: 'You have 0 credits remaining' } }), { status: 401 }));
+    const tts = createElevenLabsTts({ apiKey: 'sk_secret', voiceId: DEFAULT_VOICE_ID, fetch: f as unknown as typeof fetch });
+    const r = await tts.check();
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/quota_exceeded: You have 0 credits remaining/);
+    expect(r.message).not.toContain('sk_secret');
   });
 
   it('/api/voices requires sign-in on a gated deployment', async () => {

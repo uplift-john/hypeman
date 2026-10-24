@@ -158,6 +158,9 @@ export function SettingsDrawer({ open, settings, onChange, onClose, onClearHisto
                 <VoicePicker selected={settings.elevenVoiceId} persona={settings.persona} onSelect={(id) => onChange({ elevenVoiceId: id })} />
               </div>
             )}
+            {settings.voiceOn && voiceSource === 'browser' && (
+              <p className="mt-2 text-sm text-muted">ElevenLabs isn’t connected: ELEVENLABS_API_KEY isn’t set on the server (or this deployment predates it).</p>
+            )}
             {settings.voiceOn && voiceSource === 'browser' && voiceSupported() && (
               <div className="mt-3 flex flex-col gap-2 min-[400px]:flex-row">
                 <label className="flex-1">

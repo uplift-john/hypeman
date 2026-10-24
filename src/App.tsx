@@ -9,7 +9,7 @@ import { ToastRegion } from './components/Toast';
 import { api } from './lib/api';
 import { notify, requestNotificationPermission } from './lib/notify';
 import { loadHistory, loadSettings, recordDelivery, saveSettings, upsertHistory, type Settings } from './lib/storage';
-import { say, setElevenVoice, setVoiceBackend, stopSpeaking } from './lib/voice';
+import { onVoiceError, say, setElevenVoice, setVoiceBackend, stopSpeaking } from './lib/voice';
 import { GREETINGS } from '../shared/personas';
 import { ApiError, type EndReason, type FeedItem, type ManualResult } from './session/engine';
 import { useSession } from './session/useSession';
@@ -58,6 +58,8 @@ export default function App() {
   const [feedback, setFeedback] = useState<ManualFeedback | null>(null);
 
   useEffect(() => setElevenVoice(settings.elevenVoiceId), [settings.elevenVoiceId]);
+  // Never fail silently on the voice: say what went wrong once, where the user is looking.
+  useEffect(() => onVoiceError((msg) => setFeedback({ text: `Voice: ${msg} Using the backup voice for now.`, at: performance.now() })), []);
 
   const theme = useResolvedTheme(settings.theme);
   useEffect(() => {

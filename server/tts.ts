@@ -7,6 +7,8 @@
 export const ELEVENLABS_BASE = 'https://api.elevenlabs.io';
 /** Default: "Liam", a premade young, energetic American male voice available on every account. */
 export const DEFAULT_VOICE_ID = 'TX3LPaxmHKxFdv7VOQHJ';
+// Default is resolved at runtime: a "gym bro" voice from the Voice Library if this account can
+// use it, else Liam. ELEVENLABS_VOICE_ID pins one explicitly.
 /** Flash: lowest latency, good for one-breath reactions. */
 export const DEFAULT_MODEL_ID = 'eleven_flash_v2_5';
 export const MAX_TTS_CHARS = 200;
@@ -26,6 +28,8 @@ export interface Tts {
   catalog(): Promise<VoiceOption[]>;
   /** Make a Voice Library voice usable by this account; returns the id to synthesize with. */
   adopt(voiceId: string, ownerId: string): Promise<string>;
+  /** Live check: synthesize a tiny clip and report exactly what ElevenLabs said. */
+  check(): Promise<{ ok: boolean; voiceId: string; message: string }>;
 }
 
 export interface VoiceOption {
@@ -43,6 +47,8 @@ export class TtsError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** ElevenLabs' own HTTP status, when the error came from them. */
+    readonly upstream?: number,
   ) {
     super(message);
     this.name = 'TtsError';
@@ -51,34 +57,75 @@ export class TtsError extends Error {
 
 export function createElevenLabsTts(opts: { apiKey: string; voiceId?: string; modelId?: string; fetch?: typeof fetch; cacheSize?: number }): Tts {
   const voiceId = opts.voiceId || DEFAULT_VOICE_ID;
+  // Library voices first need adding; adopt() handles that (and reports plan limits clearly).
   const modelId = opts.modelId || DEFAULT_MODEL_ID;
   const doFetch = opts.fetch ?? fetch;
   // Lines repeat across sessions ("Noice!"), so cache audio in memory to save credits and latency.
   const cache = new Map<string, ArrayBuffer>();
   const cacheSize = opts.cacheSize ?? 300;
   let catalogCache: { at: number; voices: VoiceOption[] } | null = null;
+  /** Auto-picked library "gym bro" voice when ELEVENLABS_VOICE_ID isn't set; Liam if none works. */
+  let autoDefault: string | null = opts.voiceId ? opts.voiceId : null;
+  let autoPending: Promise<string> | null = null;
 
-  return {
-    voiceId,
+  async function tts(voice: string, text: string, persona: string, signal?: AbortSignal): Promise<ArrayBuffer> {
+    const res = await doFetch(`${ELEVENLABS_BASE}/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`, {
+      method: 'POST',
+      headers: { 'xi-api-key': opts.apiKey, 'content-type': 'application/json', accept: 'audio/mpeg' },
+      body: JSON.stringify({ text, model_id: modelId, voice_settings: VOICE_SETTINGS[persona] ?? VOICE_SETTINGS.hype }),
+      signal,
+    });
+    if (!res.ok) throw await upstreamError(res);
+    return res.arrayBuffer();
+  }
+
+  async function defaultVoice(): Promise<string> {
+    if (autoDefault) return autoDefault;
+    autoPending ??= (async () => {
+      try {
+        const lib = (await self.catalog()).find((v) => v.ownerId);
+        autoDefault = lib ? await self.adopt(lib.id, lib.ownerId!) : DEFAULT_VOICE_ID;
+      } catch {
+        autoDefault = DEFAULT_VOICE_ID;
+      }
+      return autoDefault;
+    })();
+    return autoPending;
+  }
+
+  const self: Tts = {
+    get voiceId() {
+      return autoDefault ?? voiceId;
+    },
     async synthesize(text, persona, signal, overrideVoice) {
-      const voice = overrideVoice && VOICE_ID_RE.test(overrideVoice) ? overrideVoice : voiceId;
-      const key = `${voice}|${persona}|${text}`;
+      const wanted = overrideVoice && VOICE_ID_RE.test(overrideVoice) ? overrideVoice : await defaultVoice();
+      const key = `${wanted}|${persona}|${text}`;
       const hit = cache.get(key);
       if (hit) return hit;
-      const res = await doFetch(`${ELEVENLABS_BASE}/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`, {
-        method: 'POST',
-        headers: { 'xi-api-key': opts.apiKey, 'content-type': 'application/json', accept: 'audio/mpeg' },
-        body: JSON.stringify({ text, model_id: modelId, voice_settings: VOICE_SETTINGS[persona] ?? VOICE_SETTINGS.hype }),
-        signal,
-      });
-      if (!res.ok) {
-        const status = res.status === 401 || res.status === 403 ? 502 : res.status === 429 ? 429 : 502;
-        throw new TtsError(res.status === 401 ? 'The ElevenLabs API key was rejected.' : `ElevenLabs returned an error (${res.status}).`, status);
+      let audio: ArrayBuffer;
+      try {
+        audio = await tts(wanted, text, persona, signal);
+      } catch (err) {
+        // A voice this account can't use (e.g. a library voice on a plan without API access to
+        // the Voice Library): fall back to the premade bro voice rather than going silent.
+        const retryable = err instanceof TtsError && err.upstream !== 401 && err.upstream !== 429 && wanted !== DEFAULT_VOICE_ID;
+        if (!retryable) throw err;
+        if (wanted === autoDefault) autoDefault = DEFAULT_VOICE_ID;
+        audio = await tts(DEFAULT_VOICE_ID, text, persona, signal);
       }
-      const audio = await res.arrayBuffer();
       cache.set(key, audio);
       if (cache.size > cacheSize) cache.delete(cache.keys().next().value!);
       return audio;
+    },
+
+    async check() {
+      const v = await defaultVoice();
+      try {
+        await tts(v, 'Yo!', 'hype');
+        return { ok: true, voiceId: v, message: v === DEFAULT_VOICE_ID ? 'ElevenLabs is working (premade voice “Liam”).' : 'ElevenLabs is working.' };
+      } catch (err) {
+        return { ok: false, voiceId: v, message: err instanceof TtsError ? err.message : 'Could not reach ElevenLabs.' };
+      }
     },
 
     async catalog() {
@@ -136,9 +183,33 @@ export function createElevenLabsTts(opts: { apiKey: string; voiceId?: string; mo
       if (r.ok && body.voice_id) return body.voice_id;
       // Already in the account: the library id works as-is.
       if (/already/i.test(JSON.stringify(body.detail ?? ''))) return id;
-      throw new TtsError(`ElevenLabs couldn’t add that voice (${r.status}).`, 502);
+      throw new TtsError(`ElevenLabs couldn’t add that voice (${r.status}): ${detailMessage(body)}`, 502, r.status);
     },
   };
+  return self;
+}
+
+function detailMessage(body: unknown): string {
+  const d = (body as { detail?: unknown })?.detail;
+  if (typeof d === 'string') return d.slice(0, 200);
+  if (d && typeof d === 'object') {
+    const o = d as { message?: unknown; status?: unknown };
+    return [o.status, o.message].filter((x) => typeof x === 'string').join(': ').slice(0, 200);
+  }
+  return 'no details';
+}
+
+/** Turn an ElevenLabs error response into a safe, specific message (never includes the key). */
+async function upstreamError(res: Response): Promise<TtsError> {
+  const body = await res.json().catch(() => ({}));
+  const detail = detailMessage(body);
+  const why =
+    res.status === 401
+      ? 'The ElevenLabs API key was rejected (check ELEVENLABS_API_KEY, and that the key has Text to Speech permission).'
+      : res.status === 429
+        ? 'ElevenLabs is rate-limiting or your character quota is used up.'
+        : `ElevenLabs returned ${res.status}.`;
+  return new TtsError(`${why} ${detail !== 'no details' ? `(${detail})` : ''}`.trim(), res.status === 429 ? 429 : 502, res.status);
 }
 
 export function ttsFromEnv(env: NodeJS.ProcessEnv = process.env): Tts | null {

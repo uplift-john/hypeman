@@ -38,6 +38,26 @@ export function VoicePicker({ selected, persona, onSelect }: { selected: string 
   }, []);
 
   const current = selected ?? defaultId;
+  const [check, setCheck] = useState<{ ok: boolean; message: string } | null>(null);
+  const runCheck = async () => {
+    setCheck(null);
+    try {
+      const r = await fetch('/api/voices/check');
+      setCheck(await r.json());
+    } catch {
+      setCheck({ ok: false, message: 'Couldn’t reach the server.' });
+    }
+  };
+  const checkUi = (
+    <div className="mt-2">
+      <Button onClick={runCheck}>Check voice</Button>
+      {check && (
+        <p role="status" className={`mt-2 text-sm ${check.ok ? 'text-success' : 'text-danger'}`}>
+          {check.message}
+        </p>
+      )}
+    </div>
+  );
 
   const choose = async (v: VoiceOption) => {
     setBusy(v.id);
@@ -59,9 +79,21 @@ export function VoicePicker({ selected, persona, onSelect }: { selected: string 
     }
   };
 
-  if (error && !voices) return <p className="text-sm text-muted">{error}</p>;
+  if (error && !voices)
+    return (
+      <div>
+        <p className="text-sm text-danger">{error}</p>
+        {checkUi}
+      </div>
+    );
   if (!voices) return <p className="text-sm text-muted">Loading voices from ElevenLabs…</p>;
-  if (!voices.length) return <p className="text-sm text-muted">No matching voices found. The default voice will be used.</p>;
+  if (!voices.length)
+    return (
+      <div>
+        <p className="text-sm text-muted">No matching voices found. The default bro voice will be used.</p>
+        {checkUi}
+      </div>
+    );
 
   return (
     <div className="flex flex-col gap-2" role="radiogroup" aria-label="Hypeman's voice">
@@ -83,6 +115,7 @@ export function VoicePicker({ selected, persona, onSelect }: { selected: string 
         );
       })}
       {error && <p className="text-sm text-danger">{error}</p>}
+      {checkUi}
     </div>
   );
 }

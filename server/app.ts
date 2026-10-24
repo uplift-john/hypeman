@@ -263,6 +263,11 @@ export function createApp(opts: AppOptions) {
     }
   });
 
+  app.get('/api/voices/check', async (c) => {
+    if (!opts.tts) return c.json({ ok: false, message: 'ELEVENLABS_API_KEY isn’t set on the server, so the browser voice is used.' });
+    return c.json(await opts.tts.check());
+  });
+
   app.post('/api/voices/adopt', bodyLimit({ maxSize: 1_000, onError: (c) => c.json({ error: 'Payload too large.' }, 413) }), async (c) => {
     if (!opts.tts) return c.json({ error: 'No ElevenLabs key configured.' }, 404);
     let b: { voiceId?: unknown; ownerId?: unknown };

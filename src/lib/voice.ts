@@ -57,6 +57,24 @@ let current: HTMLAudioElement | null = null;
 let packLookup: ((key: string) => string | undefined) | null = null;
 
 let elevenVoiceId: string | null = null;
+let lastVoiceError: string | null = null;
+const errorListeners = new Set<(msg: string) => void>();
+
+/** Fires when the ElevenLabs voice fails, with the server's explanation (never silent). */
+export function onVoiceError(fn: (msg: string) => void): () => void {
+  errorListeners.add(fn);
+  return () => errorListeners.delete(fn);
+}
+
+export function getLastVoiceError(): string | null {
+  return lastVoiceError;
+}
+
+function reportVoiceError(msg: string) {
+  if (msg === lastVoiceError) return;
+  lastVoiceError = msg;
+  errorListeners.forEach((l) => l(msg));
+}
 
 /** Set from /api/health: 'elevenlabs' when the server has an ElevenLabs key. */
 export function setVoiceBackend(b: Backend): void {
@@ -108,9 +126,15 @@ export async function say(text: string, voiceURI: string | null, persona = 'hype
   if (backend === 'elevenlabs') {
     try {
       const res = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, persona, voiceId: elevenVoiceId ?? undefined }) });
-      if (res.ok) return await playUrl(URL.createObjectURL(await res.blob()), true);
-    } catch {
-      // fall through to the browser voice
+      if (res.ok) {
+        lastVoiceError = null;
+        return await playUrl(URL.createObjectURL(await res.blob()), true);
+      }
+      const b = (await res.json().catch(() => ({}))) as { error?: string };
+      reportVoiceError(b.error ?? `Voice request failed (${res.status}).`);
+    } catch (e) {
+      // Autoplay refusals are the browser's, not ElevenLabs'; anything else is worth saying.
+      if (!(e instanceof DOMException && e.name === 'NotAllowedError')) reportVoiceError('Couldn’t reach the voice service.');
     }
   }
   await voicesReady();

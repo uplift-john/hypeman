@@ -13,7 +13,7 @@ Hypeman deploys as a normal website: the React app plus its small API (Claude co
    | `HYPEMAN_SESSION_SECRET` | **yes** | Any random string of 32+ characters (signs the sign-in cookie). Generate one with `openssl rand -base64 32`. |
    | `ANTHROPIC_API_KEY` | for real comments | Without it the site runs on canned lines. |
    | `ELEVENLABS_API_KEY` | for the real voice | Without it the browser's own voice is used. |
-   | `ELEVENLABS_VOICE_ID` | optional | Defaults to "Liam". Find a gym-bro voice with `npm run pick-voice`. |
+   | `ELEVENLABS_VOICE_ID` | optional | Pins the voice. Unset: Hypeman auto-picks a young American "gym bro" voice from the ElevenLabs Voice Library (adds it to your account as "Hypeman"), falling back to the premade American "Liam". Or pick one in the app: Settings → Voice. |
    | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | recommended | Makes the daily caps exact across all serverless instances. Easiest: *Storage → Create → Upstash Redis* in Vercel, which adds `KV_REST_API_URL` / `KV_REST_API_TOKEN` automatically (also accepted). |
    | `HYPEMAN_DAILY_HYPES_PER_USER` | optional | Claude calls per person per day (default 150). |
    | `HYPEMAN_DAILY_HYPES_TOTAL` | optional | Claude calls per day across everyone — your spending ceiling (default 1500). |
