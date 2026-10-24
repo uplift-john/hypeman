@@ -175,6 +175,11 @@ export function SessionView(props: Props) {
             </div>
           </div>
 
+          {live && lastLookText(state, now) && (
+            <p className="mt-3 text-sm text-muted" data-testid="last-look">
+              {lastLookText(state, now)}
+            </p>
+          )}
           {live && (
             <div className="mt-5 grid gap-3 border-t border-line pt-4 min-[400px]:grid-cols-2">
               <div>
@@ -261,6 +266,29 @@ export function SessionView(props: Props) {
       </main>
     </div>
   );
+}
+
+const QUIET_REASONS: Record<string, string> = {
+  sensitive: 'stayed quiet (looked private)',
+  'sensitive-output': 'stayed quiet (looked private)',
+  'nothing-notable': 'nothing to react to yet',
+  duplicate: 'didn’t want to repeat himself',
+  'no-frame': 'couldn’t grab the screen',
+  refusal: 'didn’t have a line',
+  unparseable: 'didn’t have a line',
+  truncated: 'didn’t have a line',
+  'too-long': 'didn’t have a line',
+  exhausted: 'ran out of fresh lines',
+};
+
+function lastLookText(s: EngineState, now: number): string | null {
+  const l = s.lastLook;
+  if (!l) return null;
+  const ago = Math.max(0, Math.round((now - l.at) / 1000));
+  const when = ago < 60 ? `${ago}s ago` : `${Math.round(ago / 60)} min ago`;
+  if (l.outcome === 'spoke') return `Last look ${when}: hyped you up.`;
+  if (l.outcome === 'error') return `Last look ${when}: couldn’t get a comment (${l.detail ?? 'error'}).`;
+  return `Last look ${when}: ${QUIET_REASONS[l.detail ?? ''] ?? 'stayed quiet'}.`;
 }
 
 function nextHypeText(s: EngineState, remaining: number): string {

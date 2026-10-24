@@ -7,21 +7,22 @@ import { MIN, makeHarness, seeded, speakOk, uniqueLine } from './harness';
 const HOUR = 60 * MIN;
 
 describe('SessionEngine — lifecycle', () => {
-  it('starts listening and schedules a randomised first comment (Normal: 4–11 min)', async () => {
+  it('starts listening and schedules a quick, randomised first comment (45–120 s)', async () => {
     const h = makeHarness();
     await h.engine.start();
     expect(h.engine.getState().status).toBe('listening');
     const at = h.engine.nextAttemptAt!;
-    expect(at).toBeGreaterThanOrEqual(4 * MIN);
-    expect(at).toBeLessThanOrEqual(11 * MIN);
+    expect(at).toBeGreaterThanOrEqual(45_000);
+    expect(at).toBeLessThanOrEqual(120_000);
     expect(h.calls).toHaveLength(0); // nothing is sent at start
   });
 
   it('delivers an automatic comment when the timer fires and the user is active', async () => {
     const h = makeHarness();
     await h.engine.start();
-    await h.time.advance(11 * MIN);
+    await h.time.advance(2 * MIN);
     expect(h.spoken.length).toBe(1);
+    expect(h.engine.getState().lastLook).toMatchObject({ outcome: 'spoke' });
     expect(h.engine.getState().feed[0].line).toBe(h.items[0].line);
     expect(h.engine.getState().usedInWindow).toBe(1);
   });
@@ -101,15 +102,17 @@ describe('SessionEngine — gates', () => {
     h.capture.active = false;
     await h.time.advance(3 * MIN + 30_000);
     expect(h.engine.getState().status).toBe('idle');
+    const before = h.calls.length; // the quick first look may land before idle kicks in
+    expect(before).toBeLessThanOrEqual(1);
     await h.time.advance(3 * HOUR);
-    expect(h.calls).toHaveLength(0);
+    expect(h.calls).toHaveLength(before);
     // Back to work → a comment comes within a few minutes, not instantly.
     h.capture.active = true;
     await h.time.advance(30_000);
     expect(h.engine.getState().status).toBe('listening');
-    expect(h.calls).toHaveLength(0);
     await h.time.advance(3 * MIN);
-    expect(h.calls.length).toBe(1);
+    // Back at it → one comment within a couple of minutes (5–120 s jitter), not a burst.
+    expect(h.calls.length).toBe(before + 1);
   });
 
   it('Pause stops sampling and commenting; Resume never fires immediately', async () => {

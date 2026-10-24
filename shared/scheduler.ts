@@ -44,6 +44,11 @@ export function nextDelay(freq: Frequency, rng: Rng): number {
   return randomBetween(rng, minMs, maxMs);
 }
 
+/** The first comment comes quickly so a new session never feels dead: 45–120 s after Start. */
+export function firstDelay(rng: Rng): number {
+  return randomBetween(rng, 45_000, 120_000);
+}
+
 /** Short random wait used after the limiter/idle gate blocks, so we don't fire exactly on the boundary. */
 export function jitter(rng: Rng, maxMs = 60_000): number {
   return randomBetween(rng, 5_000, maxMs);

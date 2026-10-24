@@ -7,6 +7,7 @@ import {
   errorBackoff,
   inQuietHours,
   jitter,
+  firstDelay,
   nextDelay,
   retryAfterSilence,
   type Frequency,
@@ -98,6 +99,14 @@ export interface FeedItem {
   context?: HypeResponse['context'];
 }
 
+export interface LastLook {
+  /** Monotonic ms. */
+  at: number;
+  outcome: 'spoke' | 'silent' | 'error';
+  /** Silence reason from the server ("sensitive", "nothing-notable", …) or the error message. */
+  detail?: string;
+}
+
 export interface Notice {
   kind: 'info' | 'warn' | 'error';
   text: string;
@@ -120,6 +129,8 @@ export interface EngineState {
   limitedUntil: number | null;
   /** Why we're limited: the 2-per-10-minutes cap, or the 90 s minimum gap. */
   limitReason: 'window' | 'gap' | null;
+  /** What happened the last time Hypeman looked (so silence is never a mystery). */
+  lastLook: LastLook | null;
   feed: FeedItem[];
   notice: Notice | null;
   hint?: string;
@@ -154,6 +165,7 @@ export class SessionEngine {
   private feed: FeedItem[] = [];
   private recent: string[] = [];
   private notice: Notice | null = null;
+  private lastLook: LastLook | null = null;
 
   private capture: CaptureHandle | null = null;
   private lastThumb: Uint8ClampedArray | null = null;
@@ -228,6 +240,7 @@ export class SessionEngine {
       maxInWindow: this.limiter.config.maxInWindow,
       limitedUntil: decision.ok ? null : decision.retryAt,
       limitReason: decision.ok ? null : decision.reason,
+      lastLook: this.lastLook,
       feed: this.feed,
       notice: this.notice,
       hint: this.capture?.hint,
@@ -277,7 +290,7 @@ export class SessionEngine {
     this.lastThumb = handle.sampleThumb();
     this.consecutiveErrors = 0;
     this.scheduleSample();
-    this.scheduleAttempt(nextDelay(this.settings.frequency, this.deps.rng));
+    this.scheduleAttempt(firstDelay(this.deps.rng));
     this.emit();
   }
 
@@ -309,6 +322,7 @@ export class SessionEngine {
     this.feed = [];
     this.recent = [];
     this.notice = null;
+    this.lastLook = null;
     this.emit();
   }
 
@@ -510,6 +524,7 @@ export class SessionEngine {
       this.consecutiveErrors++;
       const message = err instanceof Error && err.message ? err.message : 'Could not reach Hypeman.';
       this.notice = { kind: 'error', text: message, at: this.deps.now() };
+      this.lastLook = { at: this.deps.now(), outcome: 'error', detail: message };
       return abandon({ kind: 'error', message });
     }
 
@@ -520,7 +535,9 @@ export class SessionEngine {
     if (this.notice?.kind === 'error') this.notice = null;
 
     if (!res.speak || !res.line.trim() || isNearDuplicate(res.line, this.recent)) {
-      return abandon({ kind: 'silent', reason: res.speak ? 'duplicate' : res.reason });
+      const reason = res.speak ? 'duplicate' : res.reason;
+      this.lastLook = { at: this.deps.now(), outcome: 'silent', detail: reason };
+      return abandon({ kind: 'silent', reason });
     }
 
     const item: FeedItem = {
@@ -535,6 +552,7 @@ export class SessionEngine {
     // Count the comment from when the user sees it, not from when we asked.
     this.limiter.commit(token, this.deps.now());
     this.inflightToken = null;
+    this.lastLook = { at: this.deps.now(), outcome: 'spoke' };
     this.feed = [item, ...this.feed];
     this.recent = remember(this.recent, item.line);
     this.thinking = false;

@@ -162,19 +162,50 @@ export function playPreview(url: string): void {
 export function speak(text: string, voiceURI: string | null, persona = 'hype'): void {
   if (!voiceSupported()) return;
   try {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(forSpeech(text));
+    const synth = window.speechSynthesis;
     const picked = voiceURI ? listVoices().find((x) => x.voiceURI === voiceURI) : undefined;
     const fallback = picked ? { voice: picked, male: true } : defaultVoice();
-    if (fallback.voice) {
-      u.voice = fallback.voice;
-      u.lang = fallback.voice.lang;
-    }
     const p = PROSODY[persona] ?? PROSODY.hype;
-    u.rate = p.rate;
-    // No US male voice on this device: drop the pitch so at least it doesn't sound like a woman.
-    u.pitch = fallback.male ? p.pitch : Math.min(p.pitch, 0.7);
-    window.speechSynthesis.speak(u);
+
+    const utter = (voice: SpeechSynthesisVoice | undefined, male: boolean) => {
+      const u = new SpeechSynthesisUtterance(forSpeech(text));
+      if (voice) {
+        u.voice = voice;
+        u.lang = voice.lang;
+      } else {
+        u.lang = 'en-US';
+      }
+      u.rate = p.rate;
+      // No US male voice on this device: drop the pitch so at least it doesn't sound like a woman.
+      u.pitch = male ? p.pitch : Math.min(p.pitch, 0.7);
+      return u;
+    };
+
+    const first = utter(fallback.voice, fallback.male);
+    // Some listed voices (e.g. macOS voices that aren't downloaded) play nothing. If speech
+    // hasn't started shortly, retry with the system's default voice so he's never mute.
+    let started = false;
+    first.onstart = () => {
+      started = true;
+    };
+    const go = () => {
+      synth.resume(); // Chrome can leave the queue paused
+      synth.speak(first);
+      if (fallback.voice) {
+        setTimeout(() => {
+          if (started) return;
+          synth.cancel();
+          setTimeout(() => synth.speak(utter(undefined, false)), 60);
+        }, 1500);
+      }
+    };
+    // Chrome sometimes drops an utterance queued in the same tick as cancel().
+    if (synth.speaking || synth.pending) {
+      synth.cancel();
+      setTimeout(go, 60);
+    } else {
+      go();
+    }
   } catch {
     // ignore
   }
