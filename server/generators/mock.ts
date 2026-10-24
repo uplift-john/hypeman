@@ -1,7 +1,7 @@
 import { contextFromTitle, fakeContext, type ScreenContext } from '../../shared/context';
-import { MOCK_LINES, renderLine } from '../../shared/mockLines';
+import { MOCK_LINES, TALK_LINES, renderLine, talkVibe } from '../../shared/mockLines';
 import { postFilter } from '../../shared/postFilter';
-import { isSensitiveHint } from '../../shared/sensitive';
+import { isSensitiveHint, isSensitiveTalk } from '../../shared/sensitive';
 import type { HypeRequest, HypeResponse } from '../../shared/types';
 import type { Generator } from './types';
 
@@ -32,6 +32,20 @@ export function createMockGenerator(rng: () => number = Math.random): Generator 
       });
 
       if (isSensitiveHint(req.hint)) return silent('sensitive');
+
+      // Listen mode: react to the vibe of what was just said.
+      if (req.transcript) {
+        if (isSensitiveTalk(req.transcript)) return silent('sensitive');
+        const words = req.transcript.trim().split(/\s+/).length;
+        if (words < 4) return silent('nothing-notable');
+        const vibe = talkVibe(req.transcript);
+        const pool = [...shuffle(TALK_LINES[vibe][req.persona], rng), ...shuffle(TALK_LINES.any[req.persona], rng)];
+        for (const line of pool) {
+          const res = postFilter(line, req.recent);
+          if (res.ok) return { speak: true, line: res.line, reason: 'ok', mode: 'mock' };
+        }
+        return silent('exhausted');
+      }
       const ctx = contextFromTitle(req.hint, rng) ?? fakeContext(rng);
       if (ctx.category === 'blank') return silent('nothing-notable', ctx);
 

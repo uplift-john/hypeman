@@ -23,8 +23,11 @@ export function createRealGenerator(client: MessagesClient): Generator {
     async generate(req: HypeRequest, signal?: AbortSignal): Promise<HypeResponse> {
       const silent = (reason: string): HypeResponse => ({ speak: false, line: '', reason, mode: 'real' });
       const img = req.image ? parseDataUrl(req.image) : null;
-      // No frame, no comment: real mode only ever talks about what it can see.
-      if (!img) return silent('no-frame');
+      // Real mode only talks about what it can see or hear.
+      if (!img && !req.transcript) return silent('no-frame');
+      const content: Anthropic.Beta.BetaContentBlockParam[] = [];
+      if (img) content.push({ type: 'image', source: { type: 'base64', media_type: img.media_type, data: img.data } });
+      content.push({ type: 'text', text: userPrompt({ recent: req.recent, hint: req.hint, trigger: req.trigger, transcript: req.transcript, hasImage: !!img }) });
 
       let message: Anthropic.Beta.BetaMessage;
       try {
@@ -39,10 +42,7 @@ export function createRealGenerator(client: MessagesClient): Generator {
             messages: [
               {
                 role: 'user',
-                content: [
-                  { type: 'image', source: { type: 'base64', media_type: img.media_type, data: img.data } },
-                  { type: 'text', text: userPrompt({ recent: req.recent, hint: req.hint, trigger: req.trigger }) },
-                ],
+                content,
               },
             ],
           },

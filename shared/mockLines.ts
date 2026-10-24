@@ -101,6 +101,44 @@ export const MOCK_LINES: MockLine[] = [
   L('research', 'bestie', 'Nerd mode, love it.'),
 ];
 
+/** Listen mode (mock): reactions to what was just said, by vibe. */
+export type TalkVibe = 'funny' | 'agree' | 'win' | 'any';
+
+export const TALK_LINES: Record<TalkVibe, Record<PersonaId, string[]>> = {
+  funny: {
+    hype: ["That's hilarious!", 'Stop, I can’t.', 'Comedy gold.', 'Okay, that got me.'],
+    coach: ['Ha. Good one.', 'That’s genuinely funny.', 'Nice timing on that.'],
+    bestie: ['I’m dead.', 'Screaming.', 'Not you being this funny.', 'Okay, that’s iconic.'],
+  },
+  agree: {
+    hype: ["You're spot on!", 'Facts.', 'Say it louder!', 'Preach!'],
+    coach: ['Good point.', 'That’s exactly right.', 'Well said.'],
+    bestie: ['So true.', 'Literally this.', 'Couldn’t agree more.'],
+  },
+  win: {
+    hype: ['Yesssssir!', "Let's gooo!", 'Big moves!', 'That’s what I’m talking about!'],
+    coach: ['That’s a real win.', 'Earned it.', 'Proud of that.'],
+    bestie: ['Obsessed with this news.', 'Okay, winner!', 'Love that for you.'],
+  },
+  any: {
+    hype: ['Yessir!', 'Ooh, I like it.', 'Okay, okay!', 'Big energy.'],
+    coach: ['Good stuff.', 'Love that.', 'Nice.'],
+    bestie: ['Ooh, tell me more.', 'I’m invested.', 'Love this convo.'],
+  },
+};
+
+const VIBES: Array<[TalkVibe, RegExp]> = [
+  ['funny', /\b(ha(ha)+|lol|lmao|hilarious|funny|joke|dying|cracking up)\b/i],
+  ['win', /\b(got (the|it|in)|we (won|did it)|nailed|crushed|promoted|accepted|finished|shipped|done it|let'?s go|engaged|hired|passed)\b/i],
+  ['agree', /\b(exactly|so true|good point|makes sense|i agree|totally|right\?|you'?re right|that'?s true|facts)\b/i],
+];
+
+export function talkVibe(transcript: string): TalkVibe {
+  // Weight the most recent part of the conversation.
+  const tail = transcript.slice(-300);
+  return VIBES.find(([, re]) => re.test(tail))?.[0] ?? 'any';
+}
+
 const LOWER_STARTS = /^(the|your|that|this|those|these|a|an|all|everyone|what|three|two|one)\b/;
 
 function cap(s: string): string {

@@ -11,8 +11,16 @@ export interface HypeRequest {
   recent: string[];
   /** Title of the shared surface when the browser exposes one. */
   hint?: string;
-  trigger: 'auto' | 'manual';
+  /** auto = random timer, manual = "Hype me now", moment = a pause in the conversation (listen mode). */
+  trigger: 'auto' | 'manual' | 'moment';
+  /** Listen mode: the last ~45 s of the conversation as speech-to-text. Never stored or logged. */
+  transcript?: string;
 }
+
+export const MAX_TRANSCRIPT_CHARS = 2_000;
+
+/** How Hypeman follows along: hears the room, watches the screen, or both. */
+export type SessionKind = 'listen' | 'watch' | 'both';
 
 export interface HypeResponse {
   speak: boolean;

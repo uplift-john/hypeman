@@ -70,3 +70,21 @@ export function usefulHint(label: string | undefined | null): string | undefined
   if (!l || /^(screen|window):\d/i.test(l) || /^web-contents-media-stream:/i.test(l) || /^entire screen$/i.test(l)) return undefined;
   return l.slice(0, 200);
 }
+
+/**
+ * Listen mode: conversations about these get silence, and the transcript is never sent to
+ * the model. Deliberately narrow — normal chat is the point — but money, health, grief and
+ * credentials are not hype material.
+ */
+const SENSITIVE_TALK_PATTERNS: RegExp[] = [
+  /\b(password|passcode|pin number|social security|credit card number|account number|routing number)\b/i,
+  /\b(diagnos(is|ed)|cancer|chemo|biopsy|miscarriage|therapist|prescription|overdose)\b/i,
+  /\b(funeral|passed away|died|grief|suicide|self[- ]harm)\b/i,
+  /\b(divorce|custody|lawyer|lawsuit|arrested)\b/i,
+  /\b(laid off|got fired|bankrupt|debt collector|foreclos)/i,
+];
+
+export function isSensitiveTalk(transcript: string | undefined | null): boolean {
+  if (!transcript) return false;
+  return SENSITIVE_TALK_PATTERNS.some((re) => re.test(transcript));
+}

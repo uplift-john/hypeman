@@ -143,9 +143,9 @@ export function limitsFromEnv(env: NodeJS.ProcessEnv): Limits {
   const token = env.UPSTASH_REDIS_REST_TOKEN ?? env.KV_REST_API_TOKEN;
   return {
     store: url && token ? upstashStore(url, token) : memoryStore(),
-    hypePerUser: num(env.HYPEMAN_DAILY_HYPES_PER_USER, 150),
+    hypePerUser: num(env.HYPEMAN_DAILY_HYPES_PER_USER, 400),
     ttsPerUser: num(env.HYPEMAN_DAILY_VOICE_PER_USER, 300),
-    hypeGlobal: num(env.HYPEMAN_DAILY_HYPES_TOTAL, 1500),
+    hypeGlobal: num(env.HYPEMAN_DAILY_HYPES_TOTAL, 2500),
     ttsGlobal: num(env.HYPEMAN_DAILY_VOICE_TOTAL, 3000),
     loginPerHour: 20,
   };

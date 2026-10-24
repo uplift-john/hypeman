@@ -3,8 +3,8 @@ import { bodyLimit } from 'hono/body-limit';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { SESSION_COOKIE, SESSION_DAYS, dayKey, signSession, userForCode, verifySession, type AuthConfig, type Limits } from './auth';
 import { isPersonaId } from '../shared/personas';
-import { isSensitiveHint } from '../shared/sensitive';
-import { MAX_IMAGE_BYTES, type HealthResponse, type HypeRequest, type HypeResponse } from '../shared/types';
+import { isSensitiveHint, isSensitiveTalk } from '../shared/sensitive';
+import { MAX_IMAGE_BYTES, MAX_TRANSCRIPT_CHARS, type HealthResponse, type HypeRequest, type HypeResponse } from '../shared/types';
 import { UpstreamError, type Generator } from './generators/types';
 import { MAX_TTS_CHARS, TtsError, forSpeech, type Tts } from './tts';
 
@@ -37,7 +37,8 @@ export function parseHypeRequest(body: unknown): Parsed {
   if (!body || typeof body !== 'object') return { ok: false, error: 'Body must be a JSON object.' };
   const b = body as Record<string, unknown>;
   if (!isPersonaId(b.persona)) return { ok: false, error: 'Unknown persona.' };
-  if (b.trigger !== 'auto' && b.trigger !== 'manual') return { ok: false, error: 'Invalid trigger.' };
+  if (b.trigger !== 'auto' && b.trigger !== 'manual' && b.trigger !== 'moment') return { ok: false, error: 'Invalid trigger.' };
+  if (b.transcript !== undefined && (typeof b.transcript !== 'string' || b.transcript.length > MAX_TRANSCRIPT_CHARS * 2)) return { ok: false, error: 'transcript must be a short string.' };
   if (!Array.isArray(b.recent) || b.recent.some((r) => typeof r !== 'string')) return { ok: false, error: 'recent must be an array of strings.' };
   if (b.hint !== undefined && typeof b.hint !== 'string') return { ok: false, error: 'hint must be a string.' };
   if (b.image !== undefined) {
@@ -52,6 +53,8 @@ export function parseHypeRequest(body: unknown): Parsed {
       trigger: b.trigger,
       recent: (b.recent as string[]).slice(-20).map((r) => r.slice(0, 300)),
       hint: typeof b.hint === 'string' ? b.hint.slice(0, 200) : undefined,
+      // Keep the most recent part of the conversation.
+      transcript: typeof b.transcript === 'string' && b.transcript.trim() ? b.transcript.trim().slice(-MAX_TRANSCRIPT_CHARS) : undefined,
       image: b.image as string | undefined,
     },
   };
@@ -175,8 +178,8 @@ export function createApp(opts: AppOptions) {
       if (!parsed.ok) return c.json({ error: parsed.error }, 400);
       const req = parsed.value;
 
-      // Sensitive window/tab title → silence, and the frame is never forwarded anywhere.
-      if (isSensitiveHint(req.hint)) {
+      // Sensitive window/tab title or conversation → silence, and nothing is forwarded anywhere.
+      if (isSensitiveHint(req.hint) || isSensitiveTalk(req.transcript)) {
         const res: HypeResponse = { speak: false, line: '', reason: 'sensitive', mode: generator.mode };
         return c.json(res);
       }

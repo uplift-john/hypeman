@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { PERSONAS, PERSONA_IDS, type PersonaId } from '../../shared/personas';
-import type { Mode } from '../../shared/types';
+import type { Mode, SessionKind } from '../../shared/types';
 import type { EndReason } from '../session/engine';
 import { IconEye, IconGear, IconLock, IconShield, IconSparkle, Logo } from './Icons';
 import { Badge, Button } from './ui';
@@ -24,8 +24,18 @@ const START_ERRORS: Partial<Record<EndReason, { title: string; body: string }>> 
   },
 };
 
+const KINDS: Array<{ id: SessionKind; name: string; tagline: string }> = [
+  { id: 'listen', name: 'Listen', tagline: 'Hears the conversation' },
+  { id: 'watch', name: 'Watch', tagline: 'Sees your screen' },
+  { id: 'both', name: 'Both', tagline: 'Ears and eyes' },
+];
+
 interface Props {
   hosted?: boolean;
+  /** Listen (mic), Watch (screen) or Both. */
+  kind?: SessionKind;
+  listenAvailable?: boolean;
+  onKind?(k: SessionKind): void;
   mode: Mode | null;
   serverDown: boolean;
   /** A deployment's own explanation of what's misconfigured. */
@@ -38,7 +48,7 @@ interface Props {
   onOpenSettings(): void;
 }
 
-export function StartScreen({ hosted = false, mode, serverDown, configError, starting, error, persona, onPersona, onStart, onOpenSettings }: Props) {
+export function StartScreen({ hosted = false, kind = 'watch', listenAvailable = false, onKind, mode, serverDown, configError, starting, error, persona, onPersona, onStart, onOpenSettings }: Props) {
   const err = error ? START_ERRORS[error] : undefined;
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col px-4 pb-10 pt-4 sm:px-8 sm:pt-6">
@@ -66,8 +76,35 @@ export function StartScreen({ hosted = false, mode, serverDown, configError, sta
         <p className="mt-4 max-w-xl text-lg leading-relaxed text-muted text-pretty">
           {hosted
             ? 'Show Hypeman a screenshot of what’s going on (a group chat, a call, your photos, a game, even work) and it says something kind and specific about it.'
-            : 'Share a window, tab or screen. Every few minutes Hypeman notices what’s going on (a group chat, a call, your photos, a game, even work) and says something kind and specific about it.'}
+            : kind === 'listen'
+              ? 'Turn him on and keep talking. Hypeman listens to the conversation and chimes in at the good moments: “Yesssir!”, “That’s hilarious.”, “You’re spot on.”'
+              : 'Share a window, tab or screen. Every few minutes Hypeman notices what’s going on (a group chat, a call, your photos, a game, even work) and says something kind and specific about it.'}
         </p>
+
+        {!hosted && (
+          <fieldset className="mt-6">
+            <legend className="text-sm font-semibold text-muted">How should he follow along?</legend>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {KINDS.map((k) => {
+                const checked = kind === k.id;
+                const disabled = k.id !== 'watch' && !listenAvailable;
+                return (
+                  <label
+                    key={k.id}
+                    className={`relative rounded-2xl border px-3 py-3 transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--ring)] ${
+                      disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                    } ${checked ? 'border-accent bg-accent-soft' : 'border-line bg-surface hover:border-line-strong'}`}
+                  >
+                    <input type="radio" name="kind" value={k.id} checked={checked} disabled={disabled} onChange={() => onKind?.(k.id)} className="sr-only" />
+                    <span className="block font-display text-[15px] font-bold leading-tight">{k.name}</span>
+                    <span className="mt-0.5 block text-xs leading-snug text-muted">{k.tagline}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {!listenAvailable && <p className="mt-2 text-sm text-muted">Listening needs Chrome, Edge or Safari on a computer.</p>}
+          </fieldset>
+        )}
 
         <fieldset className="mt-6">
           <legend className="text-sm font-semibold text-muted">Pick a vibe</legend>
@@ -119,17 +156,26 @@ export function StartScreen({ hosted = false, mode, serverDown, configError, sta
             aria-describedby="start-help"
           >
             <IconSparkle />
-            {starting ? 'Waiting for you to pick a screen…' : 'Start session'}
+            {starting ? (kind === 'listen' ? 'Starting…' : 'Waiting for you to pick a screen…') : kind === 'listen' ? 'Start listening' : 'Start session'}
           </Button>
           <p id="start-help" className="mt-3 text-sm text-muted">
             {hosted
               ? 'This hosted version works from screenshots. The local app can watch a shared screen live. Max two comments every 10 minutes.'
-              : 'Your browser will ask which window, tab or screen to share. Max two comments every 10 minutes.'}
+              : kind === 'listen'
+                ? 'Your browser will ask to use the microphone. He chimes in at good moments in the conversation.'
+                : kind === 'both'
+                  ? 'Your browser will ask for the microphone and which screen to share.'
+                  : 'Your browser will ask which window, tab or screen to share. Max two comments every 10 minutes.'}
           </p>
+          {!hosted && kind !== 'watch' && (
+            <p className="mt-2 rounded-xl bg-warn-soft px-3 py-2 text-sm">
+              <span className="font-semibold">Heads up:</span> let the people around you know Hypeman is listening. Audio stays in your browser; only short text snippets go to Claude when he decides whether to react, and nothing is saved.
+            </p>
+          )}
         </div>
         <ul className="mt-8 grid gap-3 sm:grid-cols-3" aria-label="Privacy">
-          <Promise icon={<IconEye />} title="You choose what it sees">
-            {hosted ? 'Only the screenshots you add. Remove them anytime.' : 'One window, tab or screen. Stop anytime.'}
+          <Promise icon={<IconEye />} title={kind === 'listen' && !hosted ? 'You’re in control' : 'You choose what it sees'}>
+            {hosted ? 'Only the screenshots you add. Remove them anytime.' : kind === 'listen' ? 'The mic is on only while a session runs. Pause or stop anytime.' : 'One window, tab or screen. Stop anytime.'}
           </Promise>
           <Promise icon={<IconLock />} title="Nothing is stored">
             {hosted

@@ -9,15 +9,21 @@ export const ELEVENLABS_BASE = 'https://api.elevenlabs.io';
 export const DEFAULT_VOICE_ID = 'TX3LPaxmHKxFdv7VOQHJ';
 // Default is resolved at runtime: a "gym bro" voice from the Voice Library if this account can
 // use it, else Liam. ELEVENLABS_VOICE_ID pins one explicitly.
-/** Flash: lowest latency, good for one-breath reactions. */
-export const DEFAULT_MODEL_ID = 'eleven_flash_v2_5';
+/**
+ * Multilingual v2: ElevenLabs' most natural-sounding stable model (real intonation and pauses).
+ * Flash is faster but flatter; override with ELEVENLABS_MODEL_ID (e.g. eleven_flash_v2_5, eleven_v3).
+ */
+export const DEFAULT_MODEL_ID = 'eleven_multilingual_v2';
 export const MAX_TTS_CHARS = 200;
 
-/** Low stability + high style = more excitable, hype-man delivery. Per persona. */
+/**
+ * Delivery per persona. Moderate stability keeps intonation human (too low gets erratic, too
+ * high goes monotone); some style adds emotion; natural speed (speeding up sounds synthetic).
+ */
 export const VOICE_SETTINGS: Record<string, { stability: number; similarity_boost: number; style: number; use_speaker_boost: boolean; speed: number }> = {
-  hype: { stability: 0.3, similarity_boost: 0.8, style: 0.65, use_speaker_boost: true, speed: 1.08 },
-  coach: { stability: 0.55, similarity_boost: 0.8, style: 0.3, use_speaker_boost: true, speed: 0.98 },
-  bestie: { stability: 0.35, similarity_boost: 0.8, style: 0.55, use_speaker_boost: true, speed: 1.05 },
+  hype: { stability: 0.4, similarity_boost: 0.75, style: 0.45, use_speaker_boost: true, speed: 1.0 },
+  coach: { stability: 0.55, similarity_boost: 0.75, style: 0.25, use_speaker_boost: true, speed: 0.97 },
+  bestie: { stability: 0.4, similarity_boost: 0.75, style: 0.4, use_speaker_boost: true, speed: 1.0 },
 };
 
 export interface Tts {
@@ -99,7 +105,7 @@ export function createElevenLabsTts(opts: { apiKey: string; voiceId?: string; mo
     },
     async synthesize(text, persona, signal, overrideVoice) {
       const wanted = overrideVoice && VOICE_ID_RE.test(overrideVoice) ? overrideVoice : await defaultVoice();
-      const key = `${wanted}|${persona}|${text}`;
+      const key = `${modelId}|${wanted}|${persona}|${text}`;
       const hit = cache.get(key);
       if (hit) return hit;
       let audio: ArrayBuffer;
@@ -218,7 +224,13 @@ export function ttsFromEnv(env: NodeJS.ProcessEnv = process.env): Tts | null {
   return createElevenLabsTts({ apiKey, voiceId: env.ELEVENLABS_VOICE_ID?.trim(), modelId: env.ELEVENLABS_MODEL_ID?.trim() });
 }
 
-/** Pronounceable hype: collapse stretched letters ("yessirrrrr" → "yessirr"), strip emoji. */
+/**
+ * Make hype read naturally aloud: keep a little stretch ("yessirrrrr" → "yessirrr", so it's
+ * drawn out but not spelled), strip emoji, and make sure the line ends in punctuation so the
+ * voice lands it instead of trailing off flatly.
+ */
 export function forSpeech(text: string): string {
-  return text.replace(/(\p{L})\1{2,}/gu, '$1$1').replace(/[\p{Extended_Pictographic}\u{FE0F}]/gu, '').trim();
+  let t = text.replace(/(\p{L})\1{3,}/gu, '$1$1$1').replace(/[\p{Extended_Pictographic}\u{FE0F}]/gu, '').replace(/\s+/g, ' ').trim();
+  if (t && !/[.!?…]$/.test(t)) t += '.';
+  return t;
 }

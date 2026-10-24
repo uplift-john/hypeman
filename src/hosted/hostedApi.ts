@@ -50,7 +50,7 @@ export function createHostedApi(source: ScreenshotSource, getSampleFn: () => Sam
       const menuText = menu.length
         ? `\n\nYour voice is pre-recorded. If you speak, "line" MUST be copied exactly from this list — pick the reaction that best fits what's on screen:\n${menu.map((l) => `- ${l}`).join('\n')}`
         : '';
-      const prompt = `${systemPrompt(req.persona)}\n\n---\n\n${userPrompt({ recent: req.recent, trigger: req.trigger })}${menuText}\n\nThe attached image is the screenshot.`;
+      const prompt = `${systemPrompt(req.persona)}\n\n---\n\n${userPrompt({ recent: req.recent, trigger: req.trigger === 'moment' ? 'auto' : req.trigger })}${menuText}\n\nThe attached image is the screenshot.`;
       try {
         const out = await sample.json<{ speak?: unknown; line?: unknown; reason?: unknown }>(prompt, {
           images: [blob],

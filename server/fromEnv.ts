@@ -23,7 +23,7 @@ export function appFromEnv(env: NodeJS.ProcessEnv = process.env) {
     limits,
     allowedOrigins,
     // Short-term burst guard per person; mock mode costs nothing, so it's uncapped there.
-    maxRequests: generator.mode === 'real' ? 12 : Number.POSITIVE_INFINITY,
+    maxRequests: generator.mode === 'real' ? 30 : Number.POSITIVE_INFINITY,
   });
   return { app, generator, tts, auth };
 }

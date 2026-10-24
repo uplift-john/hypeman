@@ -14,7 +14,7 @@ import {
   type QuietHours,
   type Rng,
 } from '../../shared/scheduler';
-import type { HypeRequest, HypeResponse, Mode } from '../../shared/types';
+import type { HypeRequest, HypeResponse, Mode, SessionKind } from '../../shared/types';
 import { lumaDiff } from '../capture/pixelDiff';
 
 /* ───────────────────────── dependencies (all injectable) ───────────────────────── */
@@ -29,6 +29,21 @@ export interface CaptureHandle {
   onEnded(cb: () => void): void;
   stop(): void;
 }
+
+/** Listen-only sessions: no screen, no frames. */
+const NO_SCREEN: CaptureHandle = {
+  hint: undefined,
+  sampleThumb: () => null,
+  grabFrame: async () => null,
+  onEnded: () => {},
+  stop: () => {},
+};
+
+/** Watch mode: the original rule. Listen mode: conversation reactions are shorter, so a few more. */
+export const LIMITS_WATCH = { maxInWindow: 2, minGapMs: 90_000 } as const;
+export const LIMITS_LISTEN = { maxInWindow: 4, minGapMs: 60_000 } as const;
+/** Listen mode: at most one model call per 30 s, however chatty the room. */
+export const MOMENT_MIN_INTERVAL_MS = 30_000;
 
 export type CaptureErrorKind = 'denied' | 'cancelled' | 'unsupported' | 'failed';
 
@@ -94,7 +109,7 @@ export interface FeedItem {
   /** Wall-clock ms */
   at: number;
   mode: Mode;
-  trigger: 'auto' | 'manual';
+  trigger: 'auto' | 'manual' | 'moment';
   reaction: 'up' | 'down' | null;
   context?: HypeResponse['context'];
 }
@@ -131,6 +146,8 @@ export interface EngineState {
   limitReason: 'window' | 'gap' | null;
   /** What happened the last time Hypeman looked (so silence is never a mystery). */
   lastLook: LastLook | null;
+  kind: SessionKind;
+  minGapMs: number;
   feed: FeedItem[];
   notice: Notice | null;
   hint?: string;
@@ -155,7 +172,7 @@ const newId = () => `c${Date.now().toString(36)}${(idSeq++).toString(36)}`;
 export class SessionEngine {
   private readonly deps: EngineDeps;
   private settings: EngineSettings;
-  readonly limiter: RateLimiter;
+  limiter: RateLimiter;
 
   private phase: Phase = 'off';
   private endReason: EndReason | null = null;
@@ -166,6 +183,10 @@ export class SessionEngine {
   private recent: string[] = [];
   private notice: Notice | null = null;
   private lastLook: LastLook | null = null;
+  /** What this session follows: the conversation (mic), the screen, or both. */
+  private kind: SessionKind = 'watch';
+  private transcriptSource: (() => string) | null = null;
+  private lastMomentCall = -Infinity;
 
   private capture: CaptureHandle | null = null;
   private lastThumb: Uint8ClampedArray | null = null;
@@ -241,6 +262,8 @@ export class SessionEngine {
       limitedUntil: decision.ok ? null : decision.retryAt,
       limitReason: decision.ok ? null : decision.reason,
       lastLook: this.lastLook,
+      kind: this.kind,
+      minGapMs: this.limiter.config.minGapMs,
       feed: this.feed,
       notice: this.notice,
       hint: this.capture?.hint,
@@ -257,6 +280,55 @@ export class SessionEngine {
     this.emit();
   }
 
+  /* ── session kind (listen / watch / both) ── */
+
+  /**
+   * Set before start(). Listen sessions are driven by conversation pauses instead of the
+   * random timer, don't sample the screen, and allow a few more (shorter) reactions.
+   */
+  setKind(kind: SessionKind): void {
+    if (this.phase === 'active' || this.phase === 'starting') return;
+    this.kind = kind;
+    const cfg = kind === 'watch' ? LIMITS_WATCH : LIMITS_LISTEN;
+    const cur = this.limiter.config;
+    if (cur.maxInWindow !== cfg.maxInWindow || cur.minGapMs !== cfg.minGapMs) {
+      // Carry recent comments over so switching modes can't reset the limit.
+      const now = this.deps.now();
+      const ages = this.limiter.history().map((t) => now - t);
+      this.limiter = new RateLimiter({ ...this.deps.rateLimit, ...cfg });
+      this.limiter.seed(now, ages);
+    }
+    this.emit();
+  }
+
+  getKind(): SessionKind {
+    return this.kind;
+  }
+
+  /** Listen mode: where to read the recent conversation from. */
+  setTranscriptSource(fn: (() => string) | null): void {
+    this.transcriptSource = fn;
+  }
+
+  private get timerDriven(): boolean {
+    return !this.deps.manualOnly && this.kind !== 'listen';
+  }
+
+  /**
+   * Listen mode: the conversation just paused. Maybe chime in — same gates and limits as
+   * everything else, plus a 30 s floor between model calls so pauses can't spam the API.
+   */
+  async moment(): Promise<ManualResult | null> {
+    if (this.phase !== 'active' || this.paused || this.thinking) return null;
+    const now = this.deps.now();
+    if (this.snoozedUntil !== null && now < this.snoozedUntil) return null;
+    if (this.isQuiet()) return null;
+    if (now - this.lastMomentCall < MOMENT_MIN_INTERVAL_MS) return null;
+    if (!this.limiter.check(now).ok) return null;
+    this.lastMomentCall = now;
+    return this.generate('moment');
+  }
+
   /* ── lifecycle ── */
 
   async start(): Promise<void> {
@@ -271,7 +343,8 @@ export class SessionEngine {
     this.emit();
     let handle: CaptureHandle;
     try {
-      handle = await this.deps.startCapture();
+      // Listen-only sessions don't share the screen at all.
+      handle = this.kind === 'listen' ? NO_SCREEN : await this.deps.startCapture();
     } catch (err) {
       if (epoch !== this.epoch) return;
       this.phase = 'ended';
@@ -395,14 +468,14 @@ export class SessionEngine {
   }
 
   private isIdle(now: number): boolean {
-    return !this.deps.manualOnly && this.phase === 'active' && now - this.lastActivity >= IDLE_AFTER_MS;
+    return this.timerDriven && this.phase === 'active' && now - this.lastActivity >= IDLE_AFTER_MS;
   }
 
   /* ── sampling (idle detection only — thumbnails never leave the browser) ── */
 
   private scheduleSample(): void {
     this.clearSample();
-    if (this.deps.manualOnly) return;
+    if (!this.timerDriven) return;
     this.sampleTimer = this.deps.timers.setTimeout(() => this.sample(), SAMPLE_EVERY_MS);
   }
 
@@ -433,7 +506,7 @@ export class SessionEngine {
 
   private scheduleAttempt(delayMs: number): void {
     this.clearAttempt();
-    if (this.deps.manualOnly) return;
+    if (!this.timerDriven) return;
     this.attemptAt = this.deps.now() + delayMs;
     this.attemptTimer = this.deps.timers.setTimeout(() => {
       this.attemptTimer = null;
@@ -480,7 +553,7 @@ export class SessionEngine {
 
   /* ── the one path that can produce a comment ── */
 
-  private async generate(trigger: 'auto' | 'manual'): Promise<ManualResult> {
+  private async generate(trigger: 'auto' | 'manual' | 'moment'): Promise<ManualResult> {
     if (this.thinking) return { kind: 'busy' };
     const capture = this.capture;
     if (!capture) return { kind: 'unavailable' };
@@ -510,7 +583,8 @@ export class SessionEngine {
 
     let res: HypeResponse;
     try {
-      const image = this.settings.sendFrame ? await capture.grabFrame() : null;
+      const image = this.settings.sendFrame && this.kind !== 'listen' ? await capture.grabFrame() : null;
+      const transcript = this.kind !== 'watch' ? this.transcriptSource?.().trim() || undefined : undefined;
       if (epoch !== this.epoch) return abandon({ kind: 'unavailable' });
       res = await this.deps.api.hype({
         image: image ?? undefined,
@@ -518,6 +592,7 @@ export class SessionEngine {
         recent: this.recent,
         hint: capture.hint,
         trigger,
+        transcript,
       });
     } catch (err) {
       if (epoch !== this.epoch) return abandon({ kind: 'unavailable' });

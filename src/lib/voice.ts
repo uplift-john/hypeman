@@ -57,6 +57,17 @@ let current: HTMLAudioElement | null = null;
 let packLookup: ((key: string) => string | undefined) | null = null;
 
 let elevenVoiceId: string | null = null;
+const speakingListeners = new Set<(speaking: boolean) => void>();
+
+/** Listen mode uses this to stop hearing the room while Hypeman himself is talking. */
+export function onSpeakingChange(fn: (speaking: boolean) => void): () => void {
+  speakingListeners.add(fn);
+  return () => speakingListeners.delete(fn);
+}
+
+function setSpeaking(on: boolean) {
+  speakingListeners.forEach((l) => l(on));
+}
 let lastVoiceError: string | null = null;
 const errorListeners = new Set<(msg: string) => void>();
 
@@ -100,6 +111,8 @@ function playUrl(url: string, revoke: boolean): Promise<void> {
   const a = new Audio(url);
   current = a;
   if (revoke) a.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true });
+  a.addEventListener('playing', () => setSpeaking(true));
+  for (const ev of ['ended', 'pause', 'error']) a.addEventListener(ev, () => setSpeaking(false), { once: true });
   return a.play();
 }
 
@@ -187,7 +200,9 @@ export function speak(text: string, voiceURI: string | null, persona = 'hype'): 
     let started = false;
     first.onstart = () => {
       started = true;
+      setSpeaking(true);
     };
+    first.onend = first.onerror = () => setSpeaking(false);
     const go = () => {
       synth.resume(); // Chrome can leave the queue paused
       synth.speak(first);
@@ -195,7 +210,10 @@ export function speak(text: string, voiceURI: string | null, persona = 'hype'): 
         setTimeout(() => {
           if (started) return;
           synth.cancel();
-          setTimeout(() => synth.speak(utter(undefined, false)), 60);
+          const retry = utter(undefined, false);
+          retry.onstart = () => setSpeaking(true);
+          retry.onend = retry.onerror = () => setSpeaking(false);
+          setTimeout(() => synth.speak(retry), 60);
         }, 1500);
       }
     };

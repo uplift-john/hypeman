@@ -4,6 +4,7 @@ import type { EngineState, FeedItem } from '../session/engine';
 import { formatClock, formatCountdown } from '../lib/time';
 import { IconMute, IconVolume, IconChevron, IconGear, IconMoon, IconPause, IconPlay, IconSparkle, IconStop, IconThumbDown, IconThumbUp, Logo } from './Icons';
 import { useHasScreenshot } from '../hosted/useHasScreenshot';
+import type { ListenStatus } from '../listen/listener';
 import { ScreenshotPanel } from './ScreenshotPanel';
 import { Badge, Button } from './ui';
 
@@ -15,6 +16,9 @@ export interface ManualFeedback {
 
 interface Props {
   hosted?: boolean;
+  /** Listen mode: microphone state and the last words heard (shown so it's obvious what he hears). */
+  listenStatus?: ListenStatus;
+  heard?: string;
   state: EngineState;
   mode: Mode | null;
   /** Monotonic now (ticks every second while a session is live). */
@@ -53,7 +57,7 @@ function statusMeta(s: EngineState, now: number, wallNow: number, quietEnd: stri
         const left = formatCountdown(s.limitedUntil - now);
         return s.limitReason === 'window'
           ? { label: 'Limit reached', tone: 'muted', pulse: false, desc: `That’s ${s.maxInWindow} hypes in 10 minutes, Hypeman’s maximum. Back in ${left}.` }
-          : { label: 'Catching its breath', tone: 'muted', pulse: false, desc: `Hypeman leaves at least 90 seconds between comments. Next one possible in ${left}.` };
+          : { label: 'Catching its breath', tone: 'muted', pulse: false, desc: `Hypeman leaves at least ${Math.round(s.minGapMs / 1000)} seconds between comments. Next one possible in ${left}.` };
       }
       return { label: 'Listening', tone: 'live', pulse: true, desc: 'Looking out for something nice to say about what’s going on.' };
     case 'idle':
@@ -84,9 +88,20 @@ const DOT: Record<StatusMeta['tone'], string> = {
 };
 
 export function SessionView(props: Props) {
-  const { state, mode, now, wallNow, feedback, hosted = false } = props;
+  const { state, mode, now, wallNow, feedback, hosted = false, listenStatus = 'off', heard = '' } = props;
+  const listening = state.kind !== 'watch';
   const hasShot = useHasScreenshot();
   let meta = statusMeta(state, now, wallNow, props.quietEnd);
+  if (listening && state.status === 'listening' && state.limitedUntil === null) {
+    meta =
+      listenStatus === 'denied'
+        ? { label: 'Mic blocked', tone: 'muted', pulse: false, desc: 'The browser blocked the microphone. Allow it in the address bar (🔒 → Microphone), then press Pause and Resume.' }
+        : listenStatus === 'unsupported'
+          ? { label: 'Can’t listen here', tone: 'muted', pulse: false, desc: 'This browser has no speech recognition. Use Chrome, Edge or Safari, or switch to Watch.' }
+          : listenStatus === 'error'
+            ? { label: 'Mic trouble', tone: 'muted', pulse: false, desc: 'Speech recognition keeps failing (it needs an internet connection in Chrome). Try Pause, then Resume.' }
+            : { label: 'Listening', tone: 'live', pulse: true, desc: 'Hearing the room. He’ll chime in at good moments in the conversation.' };
+  }
   if (hosted && state.status === 'listening' && state.limitedUntil === null) {
     meta = { label: 'Ready', tone: 'live', pulse: false, desc: 'Add a screenshot of whatever’s going on, then press Hype me now.' };
   }
@@ -106,7 +121,7 @@ export function SessionView(props: Props) {
     hypeBlocked =
       state.limitReason === 'window'
         ? `That’s ${state.maxInWindow} comments in the last 10 minutes — Hypeman’s limit. The next slot opens in ${formatCountdown(remaining)}.`
-        : `Hypeman leaves at least 90 seconds between comments. The next slot opens in ${formatCountdown(remaining)}.`;
+        : `Hypeman leaves at least ${Math.round(state.minGapMs / 1000)} seconds between comments. The next slot opens in ${formatCountdown(remaining)}.`;
   }
 
   return (
@@ -119,7 +134,13 @@ export function SessionView(props: Props) {
               <Badge>{hosted ? 'Sample lines' : 'Mock mode'}</Badge>
             </span>
           )}
-          {live && !hosted && (
+          {live && listening && (
+            <Badge tone={state.paused || listenStatus !== 'listening' ? 'neutral' : 'live'} className="shrink-0">
+              <span className={`relative inline-block h-2 w-2 shrink-0 rounded-full bg-current ${listenStatus === 'listening' && !state.paused ? 'hm-pulse' : ''}`} aria-hidden="true" />
+              {state.paused ? 'Mic paused' : listenStatus === 'listening' ? 'Mic on' : 'Mic off'}
+            </Badge>
+          )}
+          {live && !hosted && state.kind !== 'listen' && (
             <Badge tone={state.paused ? 'neutral' : 'live'} className="shrink-0">
               <span className={`relative inline-block h-2 w-2 shrink-0 rounded-full bg-current ${state.paused ? '' : 'hm-pulse'}`} aria-hidden="true" />
               <span className="min-[420px]:hidden">{state.paused ? 'Paused' : 'Live'}</span>
@@ -175,6 +196,11 @@ export function SessionView(props: Props) {
             </div>
           </div>
 
+          {live && listening && listenStatus === 'listening' && (
+            <p className="mt-3 truncate text-sm text-muted" data-testid="heard">
+              {heard ? <>Hearing: “{heard}”</> : 'Waiting for someone to talk…'}
+            </p>
+          )}
           {live && lastLookText(state, now) && (
             <p className="mt-3 text-sm text-muted" data-testid="last-look">
               {lastLookText(state, now)}

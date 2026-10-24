@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { PERSONAS } from '../shared/personas';
 import type { Mode } from '../shared/types';
 import { SessionView, type ManualFeedback } from './components/SessionView';
@@ -9,10 +9,12 @@ import { ToastRegion } from './components/Toast';
 import { api } from './lib/api';
 import { notify, requestNotificationPermission } from './lib/notify';
 import { loadHistory, loadSettings, recordDelivery, saveSettings, upsertHistory, type Settings } from './lib/storage';
-import { onVoiceError, say, setElevenVoice, setVoiceBackend, stopSpeaking } from './lib/voice';
+import { onSpeakingChange, onVoiceError, say, setElevenVoice, setVoiceBackend, stopSpeaking } from './lib/voice';
 import { GREETINGS } from '../shared/personas';
 import { ApiError, type EndReason, type FeedItem, type ManualResult } from './session/engine';
 import { useSession } from './session/useSession';
+import { createListener, listenSupported } from './listen/listener';
+import type { SessionKind } from '../shared/types';
 import { HOSTED, hostedDeps, watchHostedMode } from './hosted/hosted';
 
 const START_FAILURES: EndReason[] = ['denied', 'cancelled', 'unsupported', 'failed'];
@@ -105,6 +107,24 @@ export default function App() {
   );
   const { engine, state, now, wallNow } = useSession(engineSettings, hostedDeps);
 
+  /* ── listen mode ── */
+  const kind: SessionKind = HOSTED ? 'watch' : settings.sessionKind === 'watch' || listenSupported() ? settings.sessionKind : 'watch';
+  const [listener] = useState(() => createListener({ onMoment: () => void engine.moment() }));
+  const listenStatus = useSyncExternalStore(listener.subscribe, listener.status);
+  const heard = useSyncExternalStore(listener.subscribe, listener.latest);
+  useEffect(() => {
+    engine.setTranscriptSource(() => listener.transcript());
+    return onSpeakingChange((on) => listener.setSpeaking(on));
+  }, [engine, listener]);
+  // Follow the session: the Start click begins listening; stop when it ends; pause/resume with it.
+  useEffect(() => {
+    if (state.phase === 'ended') listener.stop();
+    if (state.phase !== 'active') return;
+    if (state.kind === 'watch') listener.stop();
+    else if (state.paused) listener.pause();
+    else listener.resume();
+  }, [listener, state.phase, state.paused, state.kind]);
+
   // Deliver each comment: toast, history, optional voice, notification when backgrounded.
   useEffect(
     () =>
@@ -143,16 +163,20 @@ export default function App() {
     // Ask for notification permission on this click (a user gesture), only once.
     if (settings.notifications) void requestNotificationPermission();
     if (state.phase === 'ended') engine.reset();
+    engine.setKind(kind);
+    // Start hearing on the click itself so the mic prompt appears right away.
+    if (kind !== 'watch') listener.start();
     // Say hi on the Start click itself: proves the sound works and unlocks speech for later.
     if (settings.voiceOn) void say(GREETINGS[settings.persona], settings.voiceURI, settings.persona);
     await engine.start();
-  }, [engine, settings.notifications, settings.voiceOn, settings.voiceURI, settings.persona, state.phase]);
+  }, [engine, listener, kind, settings.notifications, settings.voiceOn, settings.voiceURI, settings.persona, state.phase]);
 
   const stop = useCallback(() => {
     stopSpeaking();
     setToastId(null);
+    listener.stop();
     engine.stop();
-  }, [engine]);
+  }, [engine, listener]);
 
   const hypeNow = useCallback(async () => {
     setFeedback(null);
@@ -191,6 +215,9 @@ export default function App() {
         {showStart ? (
           <StartScreen
             hosted={HOSTED}
+            kind={kind}
+            listenAvailable={listenSupported()}
+            onKind={(sessionKind) => update({ sessionKind })}
             mode={mode}
             serverDown={serverDown}
             configError={configError}
@@ -204,6 +231,8 @@ export default function App() {
         ) : (
           <SessionView
             hosted={HOSTED}
+            listenStatus={listenStatus}
+            heard={heard}
             state={state}
             mode={mode}
             now={now}

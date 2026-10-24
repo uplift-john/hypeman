@@ -23,8 +23,8 @@ describe('ElevenLabs client', () => {
     expect(url).not.toContain('sk_secret');
     expect((init.headers as Record<string, string>)['xi-api-key']).toBe('sk_secret');
     const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({ text: 'Noice!', model_id: 'eleven_flash_v2_5' });
-    expect(body.voice_settings.stability).toBeLessThan(0.5); // energetic delivery
+    expect(body).toMatchObject({ text: 'Noice!', model_id: 'eleven_multilingual_v2' });
+    expect(body.voice_settings.stability).toBeLessThanOrEqual(0.5); // expressive, not monotone
   });
 
   it('caches repeated lines (saves credits)', async () => {
@@ -42,8 +42,8 @@ describe('ElevenLabs client', () => {
   });
 
   it('makes slang pronounceable', () => {
-    expect(forSpeech('Yessirrrrr!')).toBe('Yessirr!');
-    expect(forSpeech("Let's gooooo 🔥")).toBe("Let's goo");
+    expect(forSpeech('Yessirrrrr!')).toBe('Yessirrr!');
+    expect(forSpeech("Let's gooooo 🔥")).toBe("Let's gooo.");
   });
 
   it('every pre-recordable line is placeholder-free, and every persona has a greeting', () => {

@@ -200,6 +200,6 @@ describe('system prompt (real mode)', () => {
     const u = userPrompt({ recent: ['one', 'two'], trigger: 'manual', hint: 'Q3' });
     expect(u).toContain('- one');
     expect(u).toContain('Hype me now');
-    expect(u).toContain('silence on sensitive screens');
+    expect(u).toContain('silence on sensitive content');
   });
 });

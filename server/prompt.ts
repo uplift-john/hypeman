@@ -30,20 +30,31 @@ export function systemPrompt(persona: PersonaId): string {
   return `${RULES}\n\nPersona for this session: ${p.name}. Tone: ${p.tone}`;
 }
 
-export function userPrompt(opts: { recent: readonly string[]; hint?: string; trigger: 'auto' | 'manual' }): string {
+/** Extra guidance when Hypeman is hearing the room (listen mode). Same rules, different input. */
+export const LISTEN_RULES = `You're also hearing the conversation in the room through speech-to-text: it has no speaker labels and may contain mistakes. React to the conversation like a hype friend sitting with them: chime in when there's a great moment (something funny, a sharp point, a win, a bold take, good news) with things like "Yesssssir!", "That's hilarious.", "You're spot on.", "Facts.", "Ooh, big if true." Most of the time stay silent — only react when a friend genuinely would, and never interrupt something serious.
+- Never repeat or quote what people said, never use names, never take sides in an argument, never comment on someone's private life, health, money or relationships. If the talk is about something sensitive or upsetting, stay silent.
+- Don't answer questions, give advice or join the discussion: you only cheer.`;
+
+export function userPrompt(opts: { recent: readonly string[]; hint?: string; trigger: 'auto' | 'manual' | 'moment'; transcript?: string; hasImage?: boolean }): string {
   const parts: string[] = [];
   parts.push(
     opts.trigger === 'manual'
-      ? 'The user just pressed "Hype me now", so they would like a comment if there is anything good to say. The rules still apply, including silence on sensitive screens.'
-      : 'This is a routine glance at the screen.',
+      ? 'The user just pressed "Hype me now", so they would like a reaction if there is anything good to say. The rules still apply, including silence on sensitive content.'
+      : opts.trigger === 'moment'
+        ? 'The conversation just paused. Chime in only if this is a genuinely good moment; otherwise stay silent.'
+        : 'This is a routine glance at the screen.',
   );
+  if (opts.transcript) {
+    parts.push(LISTEN_RULES);
+    parts.push(`What was just said (oldest first, speech-to-text):\n<conversation>\n${opts.transcript}\n</conversation>`);
+  }
   if (opts.hint) parts.push(`Title of the shared window/tab (may be out of date): ${JSON.stringify(opts.hint)}`);
   if (opts.recent.length) {
     parts.push(`Already said this session (do not repeat or paraphrase):\n${opts.recent.map((r) => `- ${r}`).join('\n')}`);
   } else {
     parts.push('Already said this session: nothing yet.');
   }
-  parts.push('Look at the screenshot and reply with the JSON object only.');
+  parts.push(opts.hasImage === false ? 'Reply with the JSON object only.' : opts.transcript ? 'Consider the screenshot and the conversation, then reply with the JSON object only.' : 'Look at the screenshot and reply with the JSON object only.');
   return parts.join('\n\n');
 }
 

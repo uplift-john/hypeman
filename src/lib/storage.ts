@@ -1,5 +1,6 @@
 import { isPersonaId, type PersonaId } from '../../shared/personas';
 import type { Frequency, QuietHours } from '../../shared/scheduler';
+import type { SessionKind } from '../../shared/types';
 
 /**
  * localStorage holds settings and reaction history only — never frames or screen text.
@@ -15,6 +16,8 @@ export interface Settings {
   voiceURI: string | null;
   /** ElevenLabs voice picked in Settings; null = the server default. */
   elevenVoiceId: string | null;
+  /** Hear the room (mic), watch the screen, or both. */
+  sessionKind: SessionKind;
   notifications: boolean;
   quietHours: QuietHours;
   theme: ThemePref;
@@ -26,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceOn: true,
   voiceURI: null,
   elevenVoiceId: null,
+  sessionKind: 'listen',
   notifications: true,
   quietHours: { enabled: false, start: '22:00', end: '08:00' },
   theme: 'system',
@@ -66,6 +70,7 @@ export function loadSettings(): Settings {
     frequency: o.frequency === 'chill' || o.frequency === 'normal' || o.frequency === 'max' ? o.frequency : DEFAULT_SETTINGS.frequency,
     voiceOn: typeof o.voiceOn === 'boolean' ? o.voiceOn : DEFAULT_SETTINGS.voiceOn,
     voiceURI: typeof o.voiceURI === 'string' ? o.voiceURI : null,
+    sessionKind: o.sessionKind === 'watch' || o.sessionKind === 'both' || o.sessionKind === 'listen' ? o.sessionKind : DEFAULT_SETTINGS.sessionKind,
     elevenVoiceId: typeof o.elevenVoiceId === 'string' && /^[A-Za-z0-9]{10,40}$/.test(o.elevenVoiceId) ? o.elevenVoiceId : null,
     notifications: typeof o.notifications === 'boolean' ? o.notifications : DEFAULT_SETTINGS.notifications,
     quietHours: {
